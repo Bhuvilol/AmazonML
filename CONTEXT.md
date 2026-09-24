@@ -218,6 +218,31 @@ cheap correctness guarantee, but it is NOT a differentiator. Do not re-inflate t
 
 ---
 
+## 9c. Recall sweep vs REAL 6.19M target pool (20k US entities)
+
+| top_n | min_sim | secs | cand/ent | recall | pairs@1.73M |
+|---|---|---|---|---|---|
+| 20 | 0.25 | 313 | 37.8 | 0.9279 | 65M |
+| **30** | **0.25** | **304** | **57.4** | **0.9397** | **100M** |
+
+**Blocking time is FLAT across top_n** (313s vs 304s) — top_n only costs
+downstream feature/scoring time (~+6 min for 65M→100M). +1.18 recall for
+~6 min is an easy trade. (40 / lower-min_sim configs still running.)
+
+---
+
+## 9d. Robustness changes made
+
+- `submit.py` now **drops + counts** invalid ids instead of raising. A full
+  predict pass costs hours; aborting at the final write yields nothing, while a
+  submission missing a few ids still scores. `strict=True` restores fail-fast
+  for tests. Verified: drops duplicate / `S1-` self-match / bad prefix, still
+  writes valid rows incl. `S1-x\t` empties.
+- Memory projection for full train run: **~3.3 GB peak** at 150k entities/country
+  (8 GB available). RAM is not the constraint; wall-clock is.
+
+---
+
 ## 10. Open / next
 
 1. ~~realistic recall ceiling~~ → **0.9278** measured. Blocking 20k x 6.19M took **713s** — naive full-test projection ~10h, needs fixed-vs-variable cost split before deciding optimise-vs-escalate.

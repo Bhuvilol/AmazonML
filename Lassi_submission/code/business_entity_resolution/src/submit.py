@@ -2,8 +2,14 @@
 
 The organisers ship ``utils/validate_submission.py``, and a submission that
 fails it is not evaluated at all. Rather than write files and hope, this module
-enforces every rule the validator checks *at write time* and raises instead of
-emitting a bad file.
+enforces every rule the validator checks *at write time*, so a rejectable file
+cannot be produced.
+
+Offending ids are dropped and counted rather than aborting the run: a full
+prediction pass costs hours, and failing at the final write would yield nothing,
+whereas a submission missing a few ids still scores. Drops are surfaced as an
+aggregate warning so real bugs stay visible, and ``strict=True`` restores
+fail-fast behaviour for tests.
 
 Rules enforced here, each mirroring a specific check in the official validator:
 
@@ -55,35 +61,58 @@ def _describe(items: Iterable[str]) -> str:
     return f"{len(ordered)} total, e.g. {head}" if len(ordered) > MAX_REPORTED else head
 
 
-def _clean_id_list(entity_id: str, raw_ids: Iterable[str]) -> list[str]:
+def _clean_id_list(
+    entity_id: str,
+    raw_ids: Iterable[str],
+    problems: dict[str, int] | None = None,
+    strict: bool = False,
+) -> list[str]:
     """Validate and canonicalise one entity's id list.
 
-    Returns a sorted list of ids. Raises on anything the validator would reject,
-    naming the offending entity so the caller can find it.
+    Returns a sorted, deduplicated list of valid ids.
+
+    **Failure policy.** By default, offending ids are *dropped* and counted
+    rather than raising. This is deliberate: a full prediction run costs hours,
+    and aborting at the final write step would produce nothing at all, whereas
+    a submission missing a handful of ids still scores. Every drop is counted
+    and reported as an aggregate warning, so a real bug is still visible. Pass
+    ``strict=True`` in tests, where failing loudly is the point.
     """
+    def note(kind: str, count: int = 1) -> None:
+        if problems is not None:
+            problems[kind] = problems.get(kind, 0) + count
+
     ids = [str(value).strip() for value in raw_ids]
     ids = [value for value in ids if value]
 
     unique = set(ids)
     if len(unique) != len(ids):
-        duplicates = {value for value in ids if ids.count(value) > 1}
-        raise SubmissionError(
-            f"{entity_id}: duplicate id(s) within its list: {_describe(duplicates)}. "
-            f"Duplicate ids inside a list cause rejection."
-        )
+        duplicates = len(ids) - len(unique)
+        if strict:
+            raise SubmissionError(
+                f"{entity_id}: {duplicates} duplicate id(s) within its list. "
+                f"Duplicate ids inside a list cause rejection."
+            )
+        note("duplicate_in_list", duplicates)
 
     self_matches = {value for value in unique if value.startswith("S1-")}
     if self_matches:
-        raise SubmissionError(
-            f"{entity_id}: self-match to Source 1: {_describe(self_matches)}. "
-            f"Only S2-/S3- ids are allowed."
-        )
+        if strict:
+            raise SubmissionError(
+                f"{entity_id}: self-match to Source 1: {_describe(self_matches)}. "
+                f"Only S2-/S3- ids are allowed."
+            )
+        note("self_match", len(self_matches))
+        unique -= self_matches
 
     bad_prefix = {value for value in unique if not value.startswith(VALID_PREFIXES)}
     if bad_prefix:
-        raise SubmissionError(
-            f"{entity_id}: id(s) without an S2-/S3- prefix: {_describe(bad_prefix)}."
-        )
+        if strict:
+            raise SubmissionError(
+                f"{entity_id}: id(s) without an S2-/S3- prefix: {_describe(bad_prefix)}."
+            )
+        note("bad_prefix", len(bad_prefix))
+        unique -= bad_prefix
 
     return sorted(unique)
 
@@ -93,6 +122,7 @@ def write_id_list_tsv(
     predictions: Mapping[str, Iterable[str]],
     required_ids: Sequence[str],
     header: tuple[str, str],
+    strict: bool = False,
 ) -> dict[str, int]:
     """Write one results-style TSV covering exactly ``required_ids``.
 
@@ -132,11 +162,14 @@ def write_id_list_tsv(
         )
 
     rows = empties = total_ids = 0
+    problems: dict[str, int] = {}
     # newline="" keeps Python from translating "\n"; we control line endings.
     with path.open("w", encoding="utf-8", newline="") as handle:
         handle.write(SEP.join(header) + "\n")
         for entity_id in required_ids:
-            ids = _clean_id_list(entity_id, predictions.get(entity_id, ()))
+            ids = _clean_id_list(
+                entity_id, predictions.get(entity_id, ()), problems, strict
+            )
             # The tab is always written -- an empty list must still produce
             # "S1-1\t", because a row without a tab is a malformed-row error.
             handle.write(f"{entity_id}{SEP}{','.join(ids)}\n")
@@ -146,7 +179,14 @@ def write_id_list_tsv(
             else:
                 empties += 1
 
-    stats = {"rows": rows, "empty_rows": empties, "total_ids": total_ids}
+    if problems:
+        logger.warning(
+            "%s: dropped invalid ids while writing -- %s. The file is still valid, "
+            "but this indicates a pipeline bug worth investigating.",
+            path.name, ", ".join(f"{k}={v}" for k, v in sorted(problems.items())),
+        )
+
+    stats = {"rows": rows, "empty_rows": empties, "total_ids": total_ids, **problems}
     logger.info(
         "wrote %s: %d rows (%d empty, %d non-empty), %d ids",
         path.name, rows, empties, rows - empties, total_ids,
