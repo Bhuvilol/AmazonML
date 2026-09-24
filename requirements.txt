@@ -1,0 +1,59 @@
+# AmazonML — hackathon dependencies
+#
+# Install into an isolated Python 3.11 env:
+#   uv venv --python 3.11 .venv
+#   uv pip install --python .venv/bin/python -r requirements.txt
+#
+# ---------------------------------------------------------------------------
+# WHY THE PINS BELOW EXIST — do not "clean these up" without reading this.
+# Each one cost real debugging time on 2026-09-25 and will bite again if lost.
+# ---------------------------------------------------------------------------
+#
+# 1. Python 3.11, NOT the system 3.14.
+#    The ML stack lags new CPython releases. 3.11 is the most battle-tested
+#    version for ML and matches most SageMaker Deep Learning Containers, so
+#    local dev and remote training stay consistent.
+#
+# 2. sagemaker <3 — this is the important one.
+#    SDK v3 is a full restructure: sagemaker.session, sagemaker.estimator and
+#    sagemaker.processing no longer exist; it exposes core/train/serve/mlops
+#    instead. Effectively every tutorial, AWS blog post and StackOverflow
+#    answer targets v2, so v2 is what keeps you unblocked under time pressure.
+#    v2 emits a deprecation warning. Deprecated is not removed. Ignore it.
+#
+# 3. sqlalchemy <2.1 — required, not cosmetic.
+#    sqlalchemy 2.1.0 ships a malformed pyproject.toml (duplicate normalized
+#    extra `mssql-pymssql`) that uv refuses to parse, which breaks the whole
+#    install. It is pulled in transitively via sagemaker -> mlflow. Without
+#    this pin the environment cannot be built at all.
+
+# ---- Core data / ML ----
+numpy
+pandas
+scikit-learn
+polars
+pyarrow
+
+# ---- Plotting ----
+matplotlib
+seaborn
+
+# ---- Notebooks ----
+jupyter
+ipykernel
+
+# ---- AWS ----
+boto3
+sagemaker>=2.200,<3     # see note 2
+sqlalchemy<2.1          # see note 3
+
+# ---- Utilities ----
+tqdm
+
+# ---------------------------------------------------------------------------
+# DELIBERATELY NOT INSTALLED YET
+# torch / transformers / xgboost / lightgbm / catboost
+# These depend on whether the task is tabular, NLP or vision. Installing the
+# wrong heavyweight stack wastes disk and time. Add once the problem
+# statement is known.
+# ---------------------------------------------------------------------------
