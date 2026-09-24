@@ -4,34 +4,32 @@
 *.pem
 *.key
 credentials
-config
 .aws/
 
-# ---- Data: too large for git, and often licence-restricted ----
-# NOTE: `data/` alone would exclude the directory itself, and git cannot
-# re-include a file inside an excluded directory -- the .gitkeep negations
-# below would silently do nothing. Excluding *contents* while re-including
-# directories lets git descend and keeps the folder structure in the repo.
-data/**
-!data/**/
-!data/**/.gitkeep
-*.csv
+# ---- Challenge data: 2.4 GB, provided by organisers, never commit ----
+# The dataset lives in student_resource/dataset/{train,test}/ and is ~2.4 GB.
+# *.tsv below covers it globally, but the explicit rule documents intent.
+student_resource/dataset/**
 *.tsv
+*.csv
 *.parquet
 *.feather
 *.zip
 *.tar.gz
 *.jsonl
 
-# ---- Model checkpoints: large binaries, regenerable ----
-models/**
-!models/**/
-!models/**/.gitkeep
+# ---- Generated outputs: large and regenerable from the pipeline ----
+student_resource/output/**
+Lassi_submission/output/**
+
+# ---- Model artefacts / caches: large binaries, regenerable ----
+artifacts/**
 *.pkl
 *.joblib
+*.npz
+*.npy
 *.pt
 *.pth
-*.h5
 *.onnx
 *.safetensors
 
@@ -44,10 +42,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .ipynb_checkpoints/
-
-# ---- Jupyter ----
-*.ipynb_checkpoints
-.jupyter/
 
 # ---- macOS ----
 .DS_Store
