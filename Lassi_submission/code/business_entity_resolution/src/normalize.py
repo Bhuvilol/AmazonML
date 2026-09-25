@@ -278,10 +278,17 @@ def add_normalized_columns(
     frame (the mapping is a Python call, not a Polars expression), so a
     LazyFrame is collected when it is enabled.
     """
+    was_lazy = isinstance(frame, pl.LazyFrame)
     if romanise and HAS_UNIDECODE:
-        if isinstance(frame, pl.LazyFrame):
+        # Transliteration is a Python-level mapping, not a Polars expression,
+        # so a LazyFrame has to be materialised. Re-wrap afterwards so callers
+        # that expect a LazyFrame back are unaffected -- silently changing the
+        # return type broke every `.pipe(...).collect()` call site.
+        if was_lazy:
             frame = frame.collect()
         frame = transliterate(frame, ("business_name", "business_address"))
+        if was_lazy:
+            frame = frame.lazy()
 
     return frame.with_columns(
         name_norm=normalize_name(pl.col("business_name")),

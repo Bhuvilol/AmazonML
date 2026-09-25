@@ -69,20 +69,27 @@ def default_threads() -> int:
 class BlockingConfig:
     """Tuned on training data; see CONTEXT.md for the sweeps behind each value."""
 
-    # Swept against the full 6.19M target pool: recall 0.9279 @20, 0.9397 @30,
-    # 0.9462 @40. Blocking time is FLAT across top_n (~305s either way), so the
-    # only cost of a larger k is downstream featurisation.
+    # Swept against the FULL 6.19M target pool (not a sample -- tuning on a
+    # 369k sample is what produced the original 2.6-point recall loss):
+    #
+    #   top_n=40  max_df=0.01            recall 0.9464   316 s
+    #   + exact-key blocking             recall 0.9531   376 s
+    #   top_n=100 + exact                recall 0.9659   460 s
+    #   top_n=100 + exact + max_df=0.5   recall 0.9825  1412 s
+    #   top_n=40  max_df=0.5 (no exact)  recall 0.9728   597 s
+    #
+    # top_n=40 chosen over 100: ~0.25 points of recall for HALF the compute
+    # (9 sharded kernels instead of 18). Unlike at max_df=0.01, blocking time
+    # is NOT flat in top_n once pruning is relaxed.
     top_n_name: int = 40
     top_n_addr: int = 40
-    # Measured inert: 0.25 vs 0.10 gave identical recall (0.9462 both). The
-    # similarity floor never binds -- top_n is the sole limiter. Kept as a
-    # cheap guard against pathological low-similarity candidates.
+    # max_df=0.5 recovers +2.6 points over 0.01 and costs no more than 0.1.
+    # The original 0.01 was tuned on a 369k sample where the loss looked like
+    # 1.7 points; at full scale it discards ~70% of each name's n-grams.
+    max_df: float = 0.50
+    ngram_range: tuple[int, int] = (3, 3)
     min_sim_name: float = 0.25
     min_sim_addr: float = 0.30
-    # max_df is the dominant speed knob: 0.01 gives a 21x speedup over no
-    # pruning for ~1.7 points of recall. 0.003 collapses recall to 0.84.
-    max_df: float = 0.01
-    ngram_range: tuple[int, int] = (3, 3)
     # MUST NOT be 0/None: sparse_dot_topn treats those as serial
     # (`n_threads or 1`), which silently costs ~2.7x.
     n_threads: int = field(default_factory=default_threads)
@@ -383,6 +390,15 @@ def main() -> int:
              "threshold grid. One run then answers 'what threshold gives "
              "sensible behaviour here', instead of one run per candidate value.",
     )
+    parser.add_argument(
+        "--shard", type=int, default=0,
+        help="Which shard of the source entities to process (0-based).")
+    parser.add_argument(
+        "--shards", type=int, default=1,
+        help="Split the SOURCE side into this many shards so a long partition "
+             "can run as parallel kernels. Each shard still sees the FULL "
+             "target pool, so recall is unchanged -- this splits wall-clock "
+             "time, not the candidate space.")
     parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
     parser.add_argument("--sample-entities", type=int, default=150_000)
     args = parser.parse_args()
