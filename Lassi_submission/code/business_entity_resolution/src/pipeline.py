@@ -202,6 +202,7 @@ def run_predict(
     enforce_exclusivity: bool = True,
     countries: list[str] | None = None,
     suffix: str = "",
+    threshold_report: bool = False,
 ) -> None:
     """Generate both submission files for a split.
 
@@ -244,6 +245,32 @@ def run_predict(
             logger.info("[%s] %s blocking: %s", split, country, stats.describe())
 
             probabilities = score_candidates(source1, targets, candidates, trained)
+
+            if threshold_report:
+                # One run yields the whole threshold curve instead of one point.
+                # Needed because France cannot be validated locally -- there is
+                # no French training data -- so the only way to choose its
+                # threshold is to see how the abstention rate responds and
+                # compare against countries that ARE in training.
+                logger.info("[%s] threshold report (train singleton rate 5.58%%):", country)
+                logger.info("    %7s %10s %8s %12s", "thresh", "empty%", "mean", "total_ids")
+                for probe in [round(x, 3) for x in np.arange(0.20, 0.86, 0.05)]:
+                    picks = DEC.select(
+                        candidates.row, candidates.col, probabilities,
+                        source1.height, threshold=float(probe),
+                        singleton_gate=None, enforce_exclusivity=enforce_exclusivity,
+                    )
+                    sizes = np.fromiter((len(p) for p in picks), dtype=np.int32,
+                                        count=source1.height)
+                    empty = int((sizes == 0).sum())
+                    nonzero = sizes[sizes > 0]
+                    logger.info(
+                        "    %7.3f %9.2f%% %8.2f %12d", probe,
+                        100 * empty / source1.height,
+                        float(nonzero.mean()) if len(nonzero) else 0.0,
+                        int(sizes.sum()),
+                    )
+
             selected = DEC.select(
                 candidates.row, candidates.col, probabilities, source1.height,
                 threshold=threshold, singleton_gate=singleton_gate,
@@ -331,6 +358,12 @@ def main() -> int:
     )
     parser.add_argument("--singleton-gate", type=float, default=None)
     parser.add_argument("--no-exclusivity", action="store_true")
+    parser.add_argument(
+        "--threshold-report", action="store_true",
+        help="Also print abstention rate and mean match count across a "
+             "threshold grid. One run then answers 'what threshold gives "
+             "sensible behaviour here', instead of one run per candidate value.",
+    )
     parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
     parser.add_argument("--sample-entities", type=int, default=150_000)
     args = parser.parse_args()
@@ -368,6 +401,7 @@ def main() -> int:
             args.split, trained, threshold, BlockingConfig(),
             Path(args.output_dir), args.singleton_gate, not args.no_exclusivity,
             countries=args.country, suffix=suffix,
+            threshold_report=args.threshold_report,
         )
         return 0
 
