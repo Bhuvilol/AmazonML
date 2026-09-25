@@ -32,7 +32,7 @@ import decide as DEC
 import model as M
 from features import RecordArrays, compute_pair_features
 from io_tsv import _READ_OPTS, read_entity_ids
-from submit import write_candidate_pairs, write_matching_results
+from submit import CANDIDATE_HEADER, MATCHING_HEADER, StreamingIdListWriter
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,14 @@ ARTIFACTS = Path(__file__).resolve().parents[1] / "artifacts"
 class BlockingConfig:
     """Tuned on training data; see CONTEXT.md for the sweeps behind each value."""
 
-    top_n_name: int = 20
-    top_n_addr: int = 20
+    # Swept against the full 6.19M target pool: recall 0.9279 @20, 0.9397 @30,
+    # 0.9462 @40. Blocking time is FLAT across top_n (~305s either way), so the
+    # only cost of a larger k is downstream featurisation.
+    top_n_name: int = 40
+    top_n_addr: int = 40
+    # Measured inert: 0.25 vs 0.10 gave identical recall (0.9462 both). The
+    # similarity floor never binds -- top_n is the sole limiter. Kept as a
+    # cheap guard against pathological low-similarity candidates.
     min_sim_name: float = 0.25
     min_sim_addr: float = 0.30
     # max_df is the dominant speed knob: 0.01 gives a 21x speedup over no
@@ -160,44 +166,61 @@ def run_predict(
     singleton_gate: float | None = None,
     enforce_exclusivity: bool = True,
 ) -> None:
-    """Generate both submission files for a split."""
+    """Generate both submission files for a split.
+
+    Rows are streamed per country partition rather than accumulated. At 1.73M
+    entities and ~77 candidates each, holding the full mapping first would cost
+    several GB on top of the live sparse matrices -- and an OOM at the final
+    write would destroy a multi-hour run. Streaming is safe because the official
+    validator compares required/seen as sets and never checks row order.
+    """
     required = read_entity_ids(DATA_ROOT / split / f"{split}_source1.tsv")
-    matches: dict[str, list[str]] = {}
-    candidates_out: dict[str, list[str]] = {}
-
-    for country in discover_countries(split):
-        started = time.time()
-        source1 = load_partition(split, 1, country)
-        targets = pl.concat([load_partition(split, n, country) for n in (2, 3)])
-        logger.info(
-            "[%s] %s: %d source x %d targets",
-            split, country, source1.height, targets.height,
-        )
-
-        candidates, stats = build_partition_candidates(source1, targets, config)
-        logger.info("[%s] %s blocking: %s", split, country, stats.describe())
-
-        probabilities = score_candidates(source1, targets, candidates, trained)
-        selected = DEC.select(
-            candidates.row, candidates.col, probabilities, source1.height,
-            threshold=threshold, singleton_gate=singleton_gate,
-            enforce_exclusivity=enforce_exclusivity,
-        )
-
-        s1_ids = source1["entity_id"].to_list()
-        tgt_ids = targets["entity_id"].to_list()
-        for row, chosen in enumerate(selected):
-            matches[s1_ids[row]] = [tgt_ids[c] for c in chosen]
-        for row in range(source1.height):
-            span = candidates.row_slice(row)
-            candidates_out[s1_ids[row]] = [tgt_ids[c] for c in candidates.col[span]]
-
-        logger.info("[%s] %s done in %.0fs", split, country, time.time() - started)
-        del source1, targets, candidates, probabilities
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    write_matching_results(output_dir / "matching_results.tsv", matches, required)
-    write_candidate_pairs(output_dir / "candidate_pairs.tsv", candidates_out, required)
+
+    matching = StreamingIdListWriter(
+        output_dir / "matching_results.tsv", MATCHING_HEADER, required
+    )
+    candidates_file = StreamingIdListWriter(
+        output_dir / "candidate_pairs.tsv", CANDIDATE_HEADER, required
+    )
+
+    with matching, candidates_file:
+        for country in discover_countries(split):
+            started = time.time()
+            source1 = load_partition(split, 1, country)
+            targets = pl.concat([load_partition(split, n, country) for n in (2, 3)])
+            logger.info(
+                "[%s] %s: %d source x %d targets",
+                split, country, source1.height, targets.height,
+            )
+
+            candidates, stats = build_partition_candidates(source1, targets, config)
+            logger.info("[%s] %s blocking: %s", split, country, stats.describe())
+
+            probabilities = score_candidates(source1, targets, candidates, trained)
+            selected = DEC.select(
+                candidates.row, candidates.col, probabilities, source1.height,
+                threshold=threshold, singleton_gate=singleton_gate,
+                enforce_exclusivity=enforce_exclusivity,
+            )
+
+            s1_ids = source1["entity_id"].to_list()
+            tgt_ids = targets["entity_id"].to_list()
+            for row in range(source1.height):
+                entity_id = s1_ids[row]
+                span = candidates.row_slice(row)
+                candidates_file.write_row(
+                    entity_id, (tgt_ids[c] for c in candidates.col[span])
+                )
+                matching.write_row(entity_id, (tgt_ids[c] for c in selected[row]))
+
+            emitted = sum(1 for chosen in selected if len(chosen))
+            logger.info(
+                "[%s] %s done in %.0fs | %d/%d entities matched (%.1f%%)",
+                split, country, time.time() - started,
+                emitted, source1.height, 100 * emitted / source1.height,
+            )
+            del source1, targets, candidates, probabilities, selected, s1_ids, tgt_ids
 
 
 def main() -> int:

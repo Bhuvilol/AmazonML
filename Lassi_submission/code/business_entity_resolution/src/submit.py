@@ -237,3 +237,110 @@ def check_subset(
             len(offenders), offenders[:MAX_REPORTED],
         )
     return offenders
+
+
+class StreamingIdListWriter:
+    """Write a results TSV row-by-row instead of building the whole mapping.
+
+    Motivation is memory, and it is not marginal. Accumulating the full test
+    candidate set first means holding ~133M id references plus the 10M target
+    id strings they point at -- several GB on top of the sparse matrices and
+    feature chunks already live. An OOM at the *final write* of a multi-hour
+    prediction run destroys the entire run.
+
+    Streaming is safe here because **the official validator compares
+    ``required`` and ``seen`` as sets and never checks row order** (see
+    ``validate_submission.py``: the only positional checks are ``required -
+    seen`` and ``seen - required``). So partitions can be written in whatever
+    order they are processed, and each partition's memory is released as soon
+    as its rows are on disk.
+
+    Completeness is still enforced: :meth:`close` verifies that every required
+    entity was written exactly once, and raises otherwise.
+
+    Usage::
+
+        with StreamingIdListWriter(path, MATCHING_HEADER, required_ids) as w:
+            for entity_id, ids in produce():
+                w.write_row(entity_id, ids)
+        stats = w.stats
+    """
+
+    def __init__(
+        self,
+        path: str | Path,
+        header: tuple[str, str],
+        required_ids: Sequence[str],
+        strict: bool = False,
+    ) -> None:
+        self.path = Path(path)
+        self.header = header
+        self.required = set(required_ids)
+        self.strict = strict
+        self.written: set[str] = set()
+        self.problems: dict[str, int] = {}
+        self.rows = 0
+        self.empties = 0
+        self.total_ids = 0
+        self.stats: dict[str, int] = {}
+        self._handle = None
+
+    def __enter__(self) -> "StreamingIdListWriter":
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = self.path.open("w", encoding="utf-8", newline="")
+        self._handle.write(SEP.join(self.header) + "\n")
+        return self
+
+    def write_row(self, entity_id: str, raw_ids: Iterable[str]) -> None:
+        """Write one entity's row, validating and canonicalising its ids."""
+        if entity_id in self.written:
+            raise SubmissionError(
+                f"{entity_id} written twice; duplicate source1_entity_id rows "
+                f"cause rejection."
+            )
+        ids = _clean_id_list(entity_id, raw_ids, self.problems, self.strict)
+        # The tab is always present -- a row without one is a malformed-row error.
+        self._handle.write(f"{entity_id}{SEP}{','.join(ids)}\n")
+        self.written.add(entity_id)
+        self.rows += 1
+        if ids:
+            self.total_ids += len(ids)
+        else:
+            self.empties += 1
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._handle is not None:
+            self._handle.close()
+            self._handle = None
+        if exc_type is not None:
+            return  # let the original exception surface unmasked
+
+        missing = self.required - self.written
+        extra = self.written - self.required
+        if missing:
+            raise SubmissionError(
+                f"{self.path.name}: {len(missing)} required entity(ies) never "
+                f"written: {_describe(missing)}. Missing rows cause rejection."
+            )
+        if extra:
+            raise SubmissionError(
+                f"{self.path.name}: {len(extra)} row(s) for unknown entities: "
+                f"{_describe(extra)}."
+            )
+        if self.problems:
+            logger.warning(
+                "%s: dropped invalid ids while writing -- %s. File is still valid.",
+                self.path.name,
+                ", ".join(f"{k}={v}" for k, v in sorted(self.problems.items())),
+            )
+        self.stats = {
+            "rows": self.rows,
+            "empty_rows": self.empties,
+            "total_ids": self.total_ids,
+            **self.problems,
+        }
+        logger.info(
+            "wrote %s: %d rows (%d empty, %d non-empty), %d ids",
+            self.path.name, self.rows, self.empties,
+            self.rows - self.empties, self.total_ids,
+        )
