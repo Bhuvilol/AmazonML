@@ -37,7 +37,8 @@ import polars as pl
 import blocking as B
 import decide as DEC
 import model as M
-from features import RecordArrays, compute_pair_features
+from features import (RecordArrays, compute_pair_features,
+                      compute_competition_features)
 from io_tsv import _READ_OPTS
 from pipeline import ARTIFACTS, DATA_ROOT, BlockingConfig, load_partition, discover_countries
 
@@ -101,6 +102,16 @@ def build_training_partition(country: str, n_entities: int, seed: int, config: B
         left, right, candidates.row, candidates.col,
         candidates.name_cos, candidates.addr_cos,
     )
+    # Must match pipeline.score_candidates exactly, or the model is trained on
+    # one feature space and applied to another.
+    features = np.hstack([
+        features,
+        compute_competition_features(
+            candidates.row, candidates.col,
+            candidates.name_cos, candidates.addr_cos,
+            source1.height, targets.height,
+        ),
+    ])
     return features, labels, candidates, truth, source1.height, targets.height, recall
 
 

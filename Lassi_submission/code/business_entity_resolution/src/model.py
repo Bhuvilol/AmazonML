@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 import lightgbm as lgb
 import numpy as np
 
-from features import FEATURE_NAMES
+from features import ALL_FEATURE_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class TrainedModel:
     """A fitted booster plus everything needed to reproduce and explain it."""
 
     booster: lgb.Booster
-    feature_names: tuple[str, ...] = FEATURE_NAMES
+    feature_names: tuple[str, ...] = ALL_FEATURE_NAMES
     best_iteration: int = 0
     metrics: dict = field(default_factory=dict)
 
@@ -147,11 +147,11 @@ def train(
 
     train_set = lgb.Dataset(
         features[train_mask], label=labels[train_mask],
-        feature_name=list(FEATURE_NAMES), free_raw_data=False,
+        feature_name=list(ALL_FEATURE_NAMES), free_raw_data=False,
     )
     valid_set = lgb.Dataset(
         features[valid_mask], label=labels[valid_mask],
-        reference=train_set, feature_name=list(FEATURE_NAMES), free_raw_data=False,
+        reference=train_set, feature_name=list(ALL_FEATURE_NAMES), free_raw_data=False,
     )
 
     evals: dict = {}

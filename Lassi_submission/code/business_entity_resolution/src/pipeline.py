@@ -31,7 +31,8 @@ import polars as pl
 import blocking as B
 import decide as DEC
 import model as M
-from features import RecordArrays, compute_pair_features
+from features import (RecordArrays, compute_pair_features,
+                      compute_competition_features)
 from io_tsv import _READ_OPTS, read_entity_ids
 from submit import SEP as SEP_TAB
 from submit import CANDIDATE_HEADER, MATCHING_HEADER, StreamingIdListWriter
@@ -152,6 +153,18 @@ def score_candidates(
     right = RecordArrays.from_frame(targets)
     out = np.empty(len(candidates), dtype=np.float32)
 
+    # Competition features describe a pair relative to the others competing for
+    # the same entity, so they need the entity's WHOLE candidate list. Computed
+    # once over everything, before chunking -- slicing the inputs would cut
+    # entities across chunk boundaries and silently corrupt every rank and
+    # share. The array is n_pairs x 12 float32, which a sharded partition keeps
+    # well inside memory.
+    competition = compute_competition_features(
+        candidates.row, candidates.col,
+        candidates.name_cos, candidates.addr_cos,
+        source1.height, targets.height,
+    )
+
     for start in range(0, len(candidates), chunk_size):
         stop = min(start + chunk_size, len(candidates))
         features = compute_pair_features(
@@ -159,6 +172,7 @@ def score_candidates(
             candidates.row[start:stop], candidates.col[start:stop],
             candidates.name_cos[start:stop], candidates.addr_cos[start:stop],
         )
+        features = np.hstack([features, competition[start:stop]])
         out[start:stop] = trained.predict(features)
         logger.info("  scored %d/%d pairs", stop, len(candidates))
         del features

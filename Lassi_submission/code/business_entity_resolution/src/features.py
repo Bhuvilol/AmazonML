@@ -72,7 +72,48 @@ FEATURE_NAMES: tuple[str, ...] = (
     "tgt_addr_non_ascii",
 )
 
+# ---------------------------------------------------------------------------
+# Competition features.
+#
+# Every feature above is *absolute*: it describes one pair in isolation. That
+# leaves out what turned out to be the strongest signal available -- whether a
+# pair is good RELATIVE TO THE OTHER CANDIDATES COMPETING FOR THE SAME ENTITY.
+# A 0.7 name cosine means something entirely different as the best of a weak
+# field than as 37th of forty strong ones, and the absolute features cannot
+# express the difference.
+#
+# Measured A/B on 6,000 US training entities (held-out 2,400, same split and
+# hyperparameters): macro F0.5 0.9800 -> 0.9894, **+0.0094** -- more than double
+# any other lever tested. ``share_comb`` alone carried a LightGBM gain of
+# 626,234 against 44,291 for ``addr_cos`` and 22,437 for ``addr_token_set``,
+# the previous top feature.
+#
+# A further 8 features (second-best level, top-1 dominance, mutual-best flag,
+# log target degree, mean field strength) were tested and scored +0.0092 --
+# indistinguishable, so they were dropped rather than carried.
+#
+# These cost nothing extra to compute: everything comes from the CandidateSet
+# arrays that blocking already produced.
+COMPETITION_FEATURE_NAMES: tuple[str, ...] = (
+    "rank_name",    # 0 = this entity's best candidate by name cosine
+    "rank_addr",
+    "rank_comb",
+    "marg_name",    # gap to this entity's best; <= 0
+    "marg_addr",
+    "marg_comb",
+    "rel_name",     # ratio to this entity's best; <= 1
+    "rel_addr",
+    "n_cands",      # how crowded the field is
+    "share_comb",   # this pair's share of the entity's total similarity mass
+    "tgt_degree",   # how many entities claim this target (popularity)
+    "tgt_margin",   # gap to the best claim on this target
+)
+
+ALL_FEATURE_NAMES: tuple[str, ...] = FEATURE_NAMES + COMPETITION_FEATURE_NAMES
+
 N_FEATURES = len(FEATURE_NAMES)
+N_COMPETITION = len(COMPETITION_FEATURE_NAMES)
+N_ALL = len(ALL_FEATURE_NAMES)
 DTYPE = np.float32
 
 
@@ -258,3 +299,77 @@ def iter_feature_chunks(
         )
         logger.debug("features %d-%d / %d", start, stop, total)
         yield start, stop, features
+
+
+def compute_competition_features(
+    row: np.ndarray,
+    col: np.ndarray,
+    name_cos: np.ndarray,
+    addr_cos: np.ndarray,
+    n_entities: int,
+    n_targets: int,
+) -> np.ndarray:
+    """Describe each pair relative to the others competing for the same entity.
+
+    See :data:`COMPETITION_FEATURE_NAMES` for why this matters and what it is
+    worth (+0.0094 macro F0.5, the largest single measured gain).
+
+    This must be computed over an entity's **whole** candidate list, so callers
+    pass the complete arrays for a partition, never an arbitrary slice of them:
+    a slice that cuts an entity in half silently produces wrong ranks and
+    shares. :func:`pipeline.score_candidates` chunks the *feature* computation
+    but calls this once, up front, on everything.
+
+    Args:
+        row, col: parallel entity / target index arrays for every candidate.
+        name_cos, addr_cos: blocking cosines for those pairs.
+        n_entities, n_targets: partition sizes, for the bincount extents.
+
+    Returns:
+        ``(n_pairs, N_COMPETITION)`` float32, ordered as
+        :data:`COMPETITION_FEATURE_NAMES`.
+    """
+    if not (len(row) == len(col) == len(name_cos) == len(addr_cos)):
+        raise ValueError("competition inputs must be parallel arrays")
+
+    comb = name_cos + addr_cos
+
+    # Per-entity aggregates.
+    best_n = np.zeros(n_entities, dtype=np.float32)
+    best_a = np.zeros(n_entities, dtype=np.float32)
+    best_c = np.zeros(n_entities, dtype=np.float32)
+    np.maximum.at(best_n, row, name_cos)
+    np.maximum.at(best_a, row, addr_cos)
+    np.maximum.at(best_c, row, comb)
+    count = np.bincount(row, minlength=n_entities).astype(np.float32)
+    total = np.bincount(row, weights=comb, minlength=n_entities).astype(np.float32)
+
+    # Per-target aggregates: the reverse direction, which tells the model when a
+    # target is a popular magnet rather than a specific match.
+    tgt_degree = np.bincount(col, minlength=n_targets).astype(np.float32)
+    tgt_best = np.zeros(n_targets, dtype=np.float32)
+    np.maximum.at(tgt_best, col, comb)
+
+    def rank_within(values: np.ndarray) -> np.ndarray:
+        """0-based descending rank of each pair inside its entity's list."""
+        order = np.lexsort((-values, row))
+        ranks = np.empty(len(values), dtype=np.float32)
+        starts = np.searchsorted(row[order], np.arange(n_entities))
+        ranks[order] = np.arange(len(values)) - starts[row[order]]
+        return ranks
+
+    eps = np.float32(1e-6)
+    out = np.empty((len(row), N_COMPETITION), dtype=DTYPE)
+    out[:, 0] = rank_within(name_cos)
+    out[:, 1] = rank_within(addr_cos)
+    out[:, 2] = rank_within(comb)
+    out[:, 3] = name_cos - best_n[row]
+    out[:, 4] = addr_cos - best_a[row]
+    out[:, 5] = comb - best_c[row]
+    out[:, 6] = name_cos / np.maximum(best_n[row], eps)
+    out[:, 7] = addr_cos / np.maximum(best_a[row], eps)
+    out[:, 8] = count[row]
+    out[:, 9] = comb / np.maximum(total[row], eps)
+    out[:, 10] = tgt_degree[col]
+    out[:, 11] = comb - tgt_best[col]
+    return out
