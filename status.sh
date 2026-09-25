@@ -41,17 +41,25 @@ fi
 
 echo
 echo "── KAGGLE KERNELS ──────────────────────────────────────────────"
-for K in train india us france france-probe; do
-    OUT=$($KG kernels status "zeroxbhuvii/lassi-er-$K" 2>&1 | head -1)
+V2="lassi2-train lassi2-india-s0of5 lassi2-india-s1of5 lassi2-india-s2of5 \
+    lassi2-india-s3of5 lassi2-india-s4of5 lassi2-us-s0of3 lassi2-us-s1of3 \
+    lassi2-us-s2of3 lassi2-france"
+DONE=0; RUN=0; ERR=0; PEND=0
+for K in $V2; do
+    OUT=$($KG kernels status "zeroxbhuvii/$K" 2>&1 | head -1)
     case "$OUT" in
-        *RUNNING*)  printf "  ● %-14s RUNNING\n"  "$K" ;;
-        *COMPLETE*) printf "  ✓ %-14s COMPLETE\n" "$K" ;;
-        *ERROR*)    printf "  ✗ %-14s ERROR\n"    "$K" ;;
-        *Authentication*|*denied*)
-                    printf "  ? %-14s AUTH EXPIRED -> kaggle auth login --force\n" "$K" ;;
-        *)          printf "  · %-14s %s\n" "$K" "$(echo "$OUT" | cut -c1-40)" ;;
+        *RUNNING*)  printf "  ● %-22s RUNNING\n"  "$K"; RUN=$((RUN+1)) ;;
+        *COMPLETE*) printf "  ✓ %-22s COMPLETE\n" "$K"; DONE=$((DONE+1)) ;;
+        *ERROR*)    printf "  ✗ %-22s ERROR\n"    "$K"; ERR=$((ERR+1)) ;;
+        *"Authentication required"*)
+                    printf "  ? %-22s AUTH EXPIRED -> kaggle auth login --force\n" "$K" ;;
+        *"wrong kernel slug"*|*denied*|*"not found"*|*404*)
+                    printf "  · %-22s not launched yet\n" "$K"; PEND=$((PEND+1)) ;;
+        *)          printf "  · %-22s %s\n" "$K" "$(echo "$OUT" | cut -c1-30)"; PEND=$((PEND+1)) ;;
     esac
 done
+echo "  ----------------------------------------"
+printf "  %d complete · %d running · %d error · %d not launched\n" $DONE $RUN $ERR $PEND
 
 echo
 echo "── SUBMISSION FILES ────────────────────────────────────────────"
