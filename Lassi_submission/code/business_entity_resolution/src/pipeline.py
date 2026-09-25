@@ -182,14 +182,17 @@ def truth_for_partition(
     return truth
 
 
-def entity_ids_for_country(split: str, country: str) -> list[str]:
-    """Source-1 entity ids belonging to one country partition."""
+def entity_ids_for_country(
+    split: str, country: str, shard: int = 0, shards: int = 1
+) -> list[str]:
+    """Source-1 entity ids for one country, optionally one shard of them."""
     path = DATA_ROOT / split / f"{split}_source1.tsv"
-    return (
+    ids = (
         pl.scan_csv(path, **_READ_OPTS)
         .filter(pl.col("country") == country)
         .select("entity_id").collect()["entity_id"].to_list()
     )
+    return ids[shard::shards] if shards > 1 else ids
 
 
 def run_predict(
@@ -203,6 +206,8 @@ def run_predict(
     countries: list[str] | None = None,
     suffix: str = "",
     threshold_report: bool = False,
+    shard: int = 0,
+    shards: int = 1,
 ) -> None:
     """Generate both submission files for a split.
 
@@ -216,9 +221,16 @@ def run_predict(
     partial = countries is not None
 
     if partial:
-        # A partial run is complete with respect to its own countries only.
-        required = [e for c in targets_countries for e in entity_ids_for_country(split, c)]
-        logger.info("PARTIAL run for %s: %d entities", targets_countries, len(required))
+        # A partial run is complete with respect to its own countries (and
+        # shard) only.
+        required = [
+            e for c in targets_countries
+            for e in entity_ids_for_country(split, c, shard, shards)
+        ]
+        logger.info(
+            "PARTIAL run for %s shard %d/%d: %d entities",
+            targets_countries, shard, shards, len(required),
+        )
     else:
         required = read_entity_ids(DATA_ROOT / split / f"{split}_source1.tsv")
 
@@ -235,10 +247,17 @@ def run_predict(
         for country in targets_countries:
             started = time.time()
             source1 = load_partition(split, 1, country)
+            if shards > 1:
+                # Stride-slice the SOURCE side only. Each shard still sees the
+                # full target pool, so recall is unaffected -- this splits
+                # wall-clock time, not the candidate space.
+                source1 = source1.with_row_index("_row").filter(
+                    pl.col("_row") % shards == shard
+                ).drop("_row")
             targets = pl.concat([load_partition(split, n, country) for n in (2, 3)])
             logger.info(
-                "[%s] %s: %d source x %d targets",
-                split, country, source1.height, targets.height,
+                "[%s] %s shard %d/%d: %d source x %d targets",
+                split, country, shard, shards, source1.height, targets.height,
             )
 
             candidates, stats = build_partition_candidates(source1, targets, config)
@@ -397,11 +416,14 @@ def main() -> int:
         booster = lgb.Booster(model_file=args.model)
         trained = M.TrainedModel(booster=booster, best_iteration=booster.num_trees())
         suffix = f"_{'_'.join(args.country)}" if args.country else ""
+        if args.shards > 1:
+            suffix += f"_s{args.shard}of{args.shards}"
         run_predict(
             args.split, trained, threshold, BlockingConfig(),
             Path(args.output_dir), args.singleton_gate, not args.no_exclusivity,
             countries=args.country, suffix=suffix,
             threshold_report=args.threshold_report,
+            shard=args.shard, shards=args.shards,
         )
         return 0
 

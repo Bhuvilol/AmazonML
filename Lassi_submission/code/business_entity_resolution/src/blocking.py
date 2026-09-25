@@ -198,8 +198,11 @@ def exact_key_candidates(
 
     Args:
         source_keys / target_keys: normalised blocking keys.
-        max_group: skip keys shared by more than this many targets. Such keys
-            carry little information and would dominate the candidate budget.
+        max_group: for keys shared by more than this many targets, take a
+            bounded sample rather than skipping. Skipping was the original
+            behaviour and it removed precisely the common-name cases this
+            blocker exists to catch, which is why the first measurement showed
+            only +0.67 points.
         min_key_len: skip very short keys, which collide by accident.
 
     Returns:
@@ -212,18 +215,28 @@ def exact_key_candidates(
         if len(key) >= min_key_len:
             groups[key].append(index)
 
-    oversized = sum(1 for g in groups.values() if len(g) > max_group)
+    oversized = 0
     rows: list[int] = []
     cols: list[int] = []
     for index, key in enumerate(source_keys):
         group = groups.get(key)
-        if not group or len(group) > max_group:
+        if not group:
+            continue
+        if len(group) > max_group:
+            # Common keys are exactly the failure case this exists for
+            # ("office of housing" has hundreds of key-mates), so skipping them
+            # entirely would defeat the purpose. Instead take a bounded sample
+            # so the pair still has a chance, without letting one key consume
+            # the whole candidate budget.
+            oversized += 1
+            rows.extend([index] * max_group)
+            cols.extend(group[:max_group])
             continue
         rows.extend([index] * len(group))
         cols.extend(group)
 
     logger.info(
-        "    exact-key: %d distinct keys, %d skipped as oversized (>%d), %d pairs",
+        "    exact-key: %d distinct keys, %d sources hit an oversized key (>%d, truncated), %d pairs",
         len(groups), oversized, max_group, len(rows),
     )
     return sp.csr_matrix(
