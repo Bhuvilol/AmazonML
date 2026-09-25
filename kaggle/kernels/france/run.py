@@ -83,14 +83,33 @@ OUTPUT    = Path("/kaggle/working/output")
 ARTIFACTS.mkdir(parents=True, exist_ok=True)
 OUTPUT.mkdir(parents=True, exist_ok=True)
 
-# A previous stage's artifacts arrive as another attached dataset -- copy them
-# in so this stage can read them.
-for prior in glob.glob("/kaggle/input/*/artifacts/model.txt"):
-    shutil.copytree(Path(prior).parent, ARTIFACTS, dirs_exist_ok=True)
+# A previous stage's outputs arrive mounted under /kaggle/input. Search
+# RECURSIVELY rather than at an assumed depth: the mount path depends on the
+# kernel slug and Kaggle's layout, and guessing wrong cost two failed runs.
+print("\n/kaggle/input tree:")
+for p in sorted(Path("/kaggle/input").glob("*")):
+    kids = sorted(c.name for c in p.glob("*"))[:6]
+    print(f"  {p.name}/  -> {kids}")
+
+for prior in Path("/kaggle/input").rglob("model.txt"):
+    shutil.copytree(prior.parent, ARTIFACTS, dirs_exist_ok=True)
     print("reused artifacts from", prior, flush=True)
-for prior in glob.glob("/kaggle/input/*/output/*_*.tsv"):
-    shutil.copy(prior, OUTPUT / Path(prior).name)
-    print("reused partial output", Path(prior).name, flush=True)
+    break
+for prior in Path("/kaggle/input").rglob("*_*.tsv"):
+    # Only per-country partials from a previous predict stage.
+    if prior.parent.name == "output":
+        shutil.copy(prior, OUTPUT / prior.name)
+        print("reused partial output", prior.name, flush=True)
+
+# Fail NOW with a legible message if this stage needs a model and hasn't got
+# one -- rather than after the preflight, where the cause is less obvious.
+if STAGE not in ("train", "merge") and not (ARTIFACTS / "threshold.json").exists():
+    raise SystemExit(
+        f"Stage {STAGE} needs the train stage's artifacts, but no model.txt/"
+        f"threshold.json was found under /kaggle/input.\n"
+        f"Attach the lassi-er-train kernel as an input (kernel_sources), and "
+        f"make sure that run finished successfully before starting this one."
+    )
 
 env = dict(os.environ)
 env["LASSI_DATA_ROOT"] = str(DATA_ROOT)
