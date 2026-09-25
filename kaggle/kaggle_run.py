@@ -47,14 +47,25 @@ assert SRC.exists(), f"src not found at {SRC}"
 
 # ---- 4. Locate the attached dataset --------------------------------------
 def find_data_root() -> Path:
-    for candidate in sorted(glob.glob("/kaggle/input/*")):
-        p = Path(candidate)
-        for root in (p, p / "dataset"):
-            if (root / "train" / "train_source1.tsv").exists():
-                return root
+    """Locate the dataset wherever it ended up under /kaggle/input.
+
+    Searched recursively rather than at fixed depths: Kaggle nests uploads
+    differently depending on whether you upload a folder, a zip, or individual
+    files, and guessing wrong would fail after the session had already started.
+    We anchor on train_source1.tsv and take its grandparent as the root.
+    """
+    hits = sorted(Path("/kaggle/input").rglob("train_source1.tsv"))
+    if hits:
+        root = hits[0].parent.parent          # .../<root>/train/train_source1.tsv
+        if (root / "test" / "test_source1.tsv").exists():
+            return root
+        print(f"WARNING: found {hits[0]} but no test/test_source1.tsv beside it")
+        return root
+    listing = [str(p) for p in Path("/kaggle/input").rglob("*")][:40]
     raise SystemExit(
-        "Could not find the dataset. Expected <input>/train/train_source1.tsv\n"
-        "Found: " + str([str(x) for x in Path('/kaggle/input').glob('*')])
+        "Could not find train_source1.tsv anywhere under /kaggle/input.\n"
+        "Is the dataset attached? (Notebook -> Add Input -> your dataset)\n"
+        "Contents seen:\n  " + "\n  ".join(listing)
     )
 
 DATA_ROOT = find_data_root()
