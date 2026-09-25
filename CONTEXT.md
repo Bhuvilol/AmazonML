@@ -49,7 +49,7 @@ real-world business.
 | **India predictions** | ✅ 809,986 rows, verified |
 | **Merged output** | ✅ 1,732,544 rows — matching 83 MB, candidates 1.6 GB |
 | Official validator | 🟡 running |
-| Submission uploaded | ❌ not yet |
+| **SUBMITTED** | ✅ **LEADERBOARD 0.890575** |
 | Methodology doc | ✅ written (needs final numbers) |
 | Submission zip | ❌ not yet assembled |
 
@@ -260,6 +260,26 @@ bridge, but 11.5% are missed ⇒ **~6% are ranking failures** (true match exists
 in-script but falls outside top-40), not signal failures. Higher `top_n` is the
 untested lever there — NOT another signal (numeric was measured and rejected).
 
-### Expected final score
-**~0.91.** Training gave 0.9099 on held-out entities. Not the 0.9313 quoted
-earlier — that was US-only and India is genuinely harder.
+### ACTUAL LEADERBOARD SCORE: **0.890575**
+
+| reference | score |
+|---|---|
+| all-empty baseline | 0.0582 |
+| local validation (US+India) | 0.9099 |
+| **leaderboard (US+India+France)** | **0.890575** |
+
+Validation was 2 points optimistic — well calibrated for this metric.
+
+### The gap decomposes to France (inference, but well supported)
+Validation could only cover US and India. If those transfer cleanly to test:
+```
+0.85 × 0.91 + 0.15 × France = 0.8906   =>   France ≈ 0.78
+```
+**France scores ~0.78 vs ~0.91 for trained countries — a 13-point gap on 15%
+of the test set.** Consistent with the abstention evidence (France 16.11% vs
+US 6.54%, true singleton rate 5.58%).
+
+Assumption: US/India test performance ≈ their validation performance. Not
+verifiable directly, but the abstention data independently points the same way.
+
+**Headroom: lifting France 0.78 → 0.85 would add ~0.010 to the total.**
