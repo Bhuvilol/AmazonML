@@ -322,8 +322,50 @@ Use this before any long hosted run.
 
 ---
 
+## 9i. ⚠️ MEASURED AND REJECTED: numeric-token blocking
+
+Hypothesis: digits are script-invariant, so an exact numeric-token index should
+recover India pairs that char n-grams cannot reach. Supporting stats looked
+strong — 82.6% of India true pairs share an exact address number, and 19.7%
+have a non-Latin (unmatchable) name **and** a shared number.
+
+**Measured on India, 20k entities vs the full 4,133,346 target pool:**
+
+| config | cand/entity | recall | delta |
+|---|---|---|---|
+| name+addr | 77.8 | 0.8851 | — |
+| + numeric top_n=20 | 91.0 | 0.8883 | +0.0032 |
+| + numeric top_n=40 | 104.6 | 0.8893 | +0.0042 |
+
+**+0.4 points for +34% candidates. Not worth it. DO NOT ENABLE.**
+
+Why it failed: `addr_block` already contains the numbers as text, so char
+3-grams over "13 570 delhi" already match "570". The numeric signal is
+**redundant with address blocking** — it re-finds pairs already found. The
+82.6% figure was a correlation, not an untapped signal.
+
+Code is kept (inert unless `source_nums`/`target_nums` are passed) because it
+costs nothing and is a documented negative result for the write-up.
+
+### India country split (for reference)
+| | India | US |
+|---|---|---|
+| name non-Latin | 23.5% | 7.5% |
+| **addr non-Latin** | **22.6%** | **0.0%** |
+| no Latin bridge at all | 5.6% | 0.0% |
+
+Recall 0.885 means 11.5% missed, but only 5.6% have no bridge — so ~6% are
+**ranking** failures (true match exists in-script but falls outside top-40),
+not signal failures. Higher top_n is the untested lever there, not new signals.
+
+---
+
 ## 10. Open / next
 
+0. **4 wrong predictions so far**: singletons-as-lever (5.58% not ~35%),
+   mutual exclusivity (0.0000 gain), toy-pool recall (0.9709 vs real 0.9278),
+   numeric blocking (+0.004). Pattern: plausible mechanism, measurement
+   disagrees. Measure before building, every time.
 1. ~~realistic recall ceiling~~ → **0.9278** measured. Blocking 20k x 6.19M took **713s** — naive full-test projection ~10h, needs fixed-vs-variable cost split before deciding optimise-vs-escalate.
 2. `model.py` — LightGBM, group split on S1 entity, stratify singletons
 3. `decide.py` — 3a global threshold → 3b singleton gate → 3c exploit mutual exclusivity
