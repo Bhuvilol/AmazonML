@@ -75,6 +75,7 @@ class CandidateSet:
     col: np.ndarray        # target-side index, one entry per pair
     name_cos: np.ndarray   # name TF-IDF cosine (0.0 if not proposed by name)
     addr_cos: np.ndarray   # address TF-IDF cosine (0.0 if not proposed by addr)
+    num_cos: np.ndarray    # address-numeric TF-IDF cosine (script-invariant)
     indptr: np.ndarray     # CSR row boundaries, for per-entity grouping
     n_source: int
     n_target: int
@@ -96,6 +97,7 @@ class BlockingStats:
     n_candidates: int = 0
     name_candidates: int = 0
     addr_candidates: int = 0
+    num_candidates: int = 0
     empty_rows: int = 0
     per_entity_mean: float = 0.0
     notes: list[str] = field(default_factory=list)
@@ -125,6 +127,8 @@ def _vectorize(
     max_df: float = 0.1,
     ngram_range: tuple[int, int] = NGRAM_RANGE,
     max_features: int | None = None,
+    analyzer: str = ANALYZER,
+    token_pattern: str | None = None,
 ) -> tuple[sp.csr_matrix, sp.csr_matrix]:
     """Fit TF-IDF on the target corpus and transform both sides.
 
@@ -139,14 +143,21 @@ def _vectorize(
     runtime while contributing almost nothing to the similarity. Dropping them
     is close to free in quality terms and worth an order of magnitude in speed.
     """
+    extra = {}
+    if analyzer == "word":
+        # sklearn's default word pattern is \b\w\w+\b, which silently DROPS
+        # single-character tokens -- so a house number "7" would vanish. These
+        # are numeric tokens already split on whitespace, so match them whole.
+        extra["token_pattern"] = token_pattern or r"\S+"
     vectorizer = TfidfVectorizer(
-        analyzer=ANALYZER,
-        ngram_range=ngram_range,
+        analyzer=analyzer,
+        ngram_range=(1, 1) if analyzer == "word" else ngram_range,
         min_df=min_df,
         max_df=max_df,
         max_features=max_features,
         dtype=DTYPE,
         lowercase=False,   # normalize.py already lowercased
+        **extra,
     )
     target_matrix = vectorizer.fit_transform(fit_texts)
     source_matrix = vectorizer.transform(transform_texts)
@@ -197,6 +208,8 @@ def build_candidates(
     source_addrs: list[str],
     target_names: list[str],
     target_addrs: list[str],
+    source_nums: list[str] | None = None,
+    target_nums: list[str] | None = None,
     top_n_name: int = 20,
     top_n_addr: int = 20,
     min_sim_name: float = 0.25,
@@ -205,11 +218,13 @@ def build_candidates(
     n_threads: int | None = None,
     max_df: float = 0.1,
     ngram_range: tuple[int, int] = NGRAM_RANGE,
-) -> tuple[sp.csr_matrix, BlockingStats]:
+    top_n_nums: int = 20,
+    min_sim_nums: float = 0.30,
+) -> tuple[CandidateSet, BlockingStats]:
     """Generate the candidate set for one country partition.
 
-    Returns a ``(n_source, n_target)`` CSR matrix whose stored values are the
-    best similarity found for that pair (name or address), plus diagnostics.
+    Returns a :class:`CandidateSet` carrying every proposed pair with all three
+    blocking scores kept separately, plus diagnostics.
 
     The union is taken with an element-wise maximum, so a pair proposed by
     either signal survives with its stronger score. Union rather than
@@ -246,6 +261,31 @@ def build_candidates(
     logger.info("  addr blocking : %d candidates", addr_sim.nnz)
     del source_ad, target_ad
 
+    # Third signal: exact address NUMBERS, as IDF-weighted word tokens.
+    #
+    # Digits are script-invariant, which matters enormously for India: 23.5% of
+    # its true pairs have a non-Latin name AND 22.6% a non-Latin address, so
+    # character n-grams fail on both fields and recall drops to 0.88 versus
+    # 0.95 for US. But 82.6% of India's true pairs share an exact address
+    # number, and 19.7% have an unmatchable name yet a matching number -- pairs
+    # that only this signal can propose.
+    #
+    # IDF does the heavy lifting: a 6-digit PIN is rare and highly selective,
+    # while "12" is near-worthless, and TF-IDF weights them accordingly without
+    # any hand-tuned stop list.
+    if source_nums is not None and target_nums is not None:
+        source_nm2, target_nm2 = _vectorize(
+            target_nums, source_nums, min_df=1, max_df=max_df, analyzer="word"
+        )
+        num_sim = _topn_similarity(
+            source_nm2, target_nm2, top_n_nums, min_sim_nums, chunk_rows, n_threads
+        )
+        stats.num_candidates = num_sim.nnz
+        logger.info("  nums blocking : %d candidates", num_sim.nnz)
+        del source_nm2, target_nm2
+    else:
+        num_sim = sp.csr_matrix(name_sim.shape, dtype=DTYPE)
+
     # Union the two candidate sources while keeping both scores aligned.
     #
     # NOTE: the obvious trick of adding a zero-valued union-pattern matrix does
@@ -253,7 +293,7 @@ def build_candidates(
     # result collapses back to the addend's own pattern. Instead we encode each
     # (row, col) as a sorted int64 key and gather by binary search, which is
     # exact and fully vectorised.
-    union = name_sim + addr_sim
+    union = name_sim + addr_sim + num_sim
     union.sort_indices()
     row_counts = np.diff(union.indptr)
     union_rows = np.repeat(np.arange(union.shape[0], dtype=np.int64), row_counts)
@@ -274,12 +314,14 @@ def build_candidates(
 
     name_aligned = align(name_sim)
     addr_aligned = align(addr_sim)
+    num_aligned = align(num_sim)
 
     candidates = CandidateSet(
         row=union_rows.astype(np.int32),
         col=union.indices.astype(np.int32),
         name_cos=name_aligned,
         addr_cos=addr_aligned,
+        num_cos=num_aligned,
         indptr=union.indptr.astype(np.int64),
         n_source=union.shape[0],
         n_target=union.shape[1],
