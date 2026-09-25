@@ -50,10 +50,9 @@ cd src
 python train_model.py --sample-entities 150000
 
 # 2. Generate both submission files for the test set.
-python -m pipeline predict \
-    --model ../artifacts/model.txt \
-    --threshold "$(python -c 'import json;print(json.load(open("../artifacts/threshold.json"))["threshold"])')" \
-    --output-dir ../../output
+#    The threshold is read from artifacts/threshold.json automatically,
+#    so the two stages cannot drift apart.
+python -m pipeline predict --model ../artifacts/model.txt --output-dir ../../output
 ```
 
 Then validate with the organisers' script, from `student_resource/`:

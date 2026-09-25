@@ -228,7 +228,11 @@ def main() -> int:
     parser.add_argument("command", choices=["train", "predict"])
     parser.add_argument("--split", default="test")
     parser.add_argument("--model", default=str(ARTIFACTS / "model.txt"))
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument(
+        "--threshold", type=float, default=None,
+        help="Decision threshold. Defaults to the value train_model.py selected "
+             "in artifacts/threshold.json, so the two stages cannot drift apart.",
+    )
     parser.add_argument("--singleton-gate", type=float, default=None)
     parser.add_argument("--no-exclusivity", action="store_true")
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "Lassi_submission" / "output"))
@@ -242,12 +246,29 @@ def main() -> int:
     )
 
     if args.command == "predict":
+        import json
+
         import lightgbm as lgb
+
+        threshold = args.threshold
+        if threshold is None:
+            threshold_path = Path(args.model).parent / "threshold.json"
+            if not threshold_path.is_file():
+                raise SystemExit(
+                    f"No --threshold given and {threshold_path} not found. "
+                    f"Run train_model.py first, or pass --threshold explicitly."
+                )
+            payload = json.loads(threshold_path.read_text())
+            threshold = float(payload["threshold"])
+            logger.info(
+                "threshold %.3f from %s (validation macro F0.5 %.4f)",
+                threshold, threshold_path.name, payload.get("valid_macro_f05", float("nan")),
+            )
 
         booster = lgb.Booster(model_file=args.model)
         trained = M.TrainedModel(booster=booster, best_iteration=booster.num_trees())
         run_predict(
-            args.split, trained, args.threshold, BlockingConfig(),
+            args.split, trained, threshold, BlockingConfig(),
             Path(args.output_dir), args.singleton_gate, not args.no_exclusivity,
         )
         return 0
