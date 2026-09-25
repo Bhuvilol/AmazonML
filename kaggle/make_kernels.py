@@ -19,14 +19,23 @@ import argparse
 import json
 from pathlib import Path
 
-# Stage -> the stages whose outputs it needs attached.
-# train produces the model; each country needs the model; merge needs them all.
+# Stage -> extra DATASETS it needs attached (beyond the challenge data).
+#
+# Originally this chained stages via Kaggle's `kernel_sources`, which is the
+# documented way to feed one notebook's output into another. It silently did
+# not mount -- all three country stages failed identically with the model
+# missing. Publishing the 4 MB model as an ordinary dataset mounts reliably,
+# so that is what we use.
+#
+# `merge` is absent deliberately: concatenating three partial files is trivial
+# and is done locally, which removes the last piece of cross-kernel chaining.
+ARTIFACTS_DATASET = "lassi-er-artifacts"
+
 STAGES: dict[str, list[str]] = {
     "train":   [],
-    "India":   ["train"],
-    "US":      ["train"],
-    "France":  ["train"],
-    "merge":   ["train", "India", "US", "France"],
+    "India":   [ARTIFACTS_DATASET],
+    "US":      [ARTIFACTS_DATASET],
+    "France":  [ARTIFACTS_DATASET],
 }
 
 
@@ -46,7 +55,7 @@ def main() -> None:
     root = Path(__file__).parent / args.out
     made = []
 
-    for stage, depends_on in STAGES.items():
+    for stage, extra_datasets in STAGES.items():
         d = root / stage.lower()
         d.mkdir(parents=True, exist_ok=True)
 
@@ -66,13 +75,13 @@ def main() -> None:
             "enable_gpu": False,         # CPU work; a GPU session gives FEWER vCPUs
             "enable_tpu": False,
             "enable_internet": True,     # pip install + git clone
-            "dataset_sources": [args.dataset],
-            "kernel_sources": [slug(args.user, s) for s in depends_on],
+            "dataset_sources": [args.dataset] + [f"{args.user}/{d}" for d in extra_datasets],
+            "kernel_sources": [],
             "competition_sources": [],
         }, indent=2) + "\n")
-        made.append((stage, d, depends_on))
+        made.append((stage, d, extra_datasets))
 
-    print(f"{'stage':<10}{'kernel id':<34}{'inherits from'}")
+    print(f"{'stage':<10}{'kernel id':<34}{'extra datasets'}")
     print("-" * 74)
     for stage, d, deps in made:
         print(f"{stage:<10}{slug(args.user, stage):<34}{deps or '-'}")

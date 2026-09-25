@@ -9,10 +9,9 @@
   "enable_tpu": false,
   "enable_internet": true,
   "dataset_sources": [
-    "zeroxbhuvii/amazonml-er-data"
+    "zeroxbhuvii/amazonml-er-data",
+    "zeroxbhuvii/lassi-er-artifacts"
   ],
-  "kernel_sources": [
-    "zeroxbhuvii/lassi-er-train"
-  ],
+  "kernel_sources": [],
   "competition_sources": []
 }
