@@ -27,6 +27,7 @@ on 693k training pairs), so partitioning is lossless.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from pathlib import Path
 from typing import Iterable, Iterator
@@ -44,15 +45,39 @@ CANDIDATE_HEADER = ["source1_entity_id", "candidate_entity_ids"]
 
 # Polars CSV options shared by every reader. quote_char=None is the important
 # one: it disables quote processing so an unbalanced `"` cannot eat rows.
+def _empty_string_kwarg() -> dict:
+    """Pick the right Polars argument for "empty field stays an empty string".
+
+    This matters for correctness, not style: an empty ``matched_entity_ids`` is
+    a real singleton (5.58% of entities), not missing data, so it must not
+    become null.
+
+    Polars renamed the argument -- older versions take
+    ``missing_utf8_is_empty_string=True``, newer ones
+    ``empty_string_is_null=False``. Hard-coding either one breaks on the other,
+    which is exactly what happened when code written against a local Polars
+    1.44 was run on an older hosted runtime. Detect it instead of assuming,
+    so the pipeline reproduces on whatever version a reviewer happens to have.
+    """
+    params = inspect.signature(pl.scan_csv).parameters
+    if "empty_string_is_null" in params:
+        return {"empty_string_is_null": False}
+    if "missing_utf8_is_empty_string" in params:
+        return {"missing_utf8_is_empty_string": True}
+    logger.warning(
+        "Polars %s exposes neither empty-string argument; empty fields may "
+        "parse as null. Verify singleton handling.", pl.__version__
+    )
+    return {}
+
+
 _READ_OPTS = dict(
     separator=SEP,
     quote_char=None,
     has_header=True,
     infer_schema_length=0,   # force every column to Utf8
-    # Empty fields must stay empty strings, never null: an empty
-    # matched_entity_ids is a real singleton, not missing data.
-    empty_string_is_null=False,
     encoding="utf8",
+    **_empty_string_kwarg(),
 )
 
 

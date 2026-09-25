@@ -98,6 +98,34 @@ env["LASSI_ARTIFACTS"] = str(ARTIFACTS)
 env["LASSI_OUTPUT"]    = str(OUTPUT)
 env["PYTHONUNBUFFERED"] = "1"
 
+# ---- 5b. PREFLIGHT --------------------------------------------------------
+# Two earlier runs died on environment mismatches (no internet; a Polars
+# argument renamed between versions), each after the session had already
+# started. A 20-second preflight turns those into an immediate, legible
+# failure instead of a crash partway through an hours-long stage.
+print("\n" + "-" * 62)
+print("PREFLIGHT")
+sys.path.insert(0, str(SRC))
+try:
+    import numpy, scipy, sklearn, polars, lightgbm, rapidfuzz, sparse_dot_topn
+    for m in (numpy, scipy, sklearn, polars, lightgbm, rapidfuzz):
+        print(f"  {m.__name__:<16} {getattr(m, '__version__', '?')}")
+    import io_tsv, normalize, blocking, features, model, decide, pipeline
+    print(f"  polars csv opts  "
+          f"{[k for k in io_tsv._READ_OPTS if 'empty' in k or 'missing' in k]}")
+    # Actually parse the real data -- catches separator/schema/version problems.
+    probe = io_tsv.read_source(DATA_ROOT / "test" / "test_source1.tsv").head(3)
+    print(f"  probe read       {probe.shape} cols={probe.columns}")
+    countries = sorted(set(
+        polars.scan_csv(DATA_ROOT / "test" / "test_source1.tsv", **io_tsv._READ_OPTS)
+        .select('country').unique().collect()['country'].to_list()))
+    print(f"  test countries   {countries}")
+    print("PREFLIGHT OK")
+except Exception as exc:
+    import traceback; traceback.print_exc()
+    raise SystemExit(f"PREFLIGHT FAILED: {type(exc).__name__}: {exc}")
+print("-" * 62, flush=True)
+
 # ---- 6. Run --------------------------------------------------------------
 if STAGE == "train":
     cmd = [sys.executable, "train_model.py",
