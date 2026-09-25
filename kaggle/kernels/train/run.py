@@ -15,7 +15,7 @@
 # ==========================================================================
 
 STAGE = "train"          # "train" | "India" | "US" | "France" | "merge"
-SAMPLE_ENTITIES = 100_000
+SAMPLE_ENTITIES = 100000
 REPO = "https://github.com/Bhuvilol/AmazonML.git"
 
 # --------------------------------------------------------------------------
