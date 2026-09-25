@@ -25,13 +25,24 @@ real-world business.
 - Deliverables: `matching_results.tsv` (scored) + `candidate_pairs.tsv`
   (audited) + runnable code + methodology doc, as `Lassi_submission.zip`.
 - **Winning = a submission that scores.** Not an impressive system.
+- **TWO ranked axes, not one** (PS update banner, captured 2026-09-25):
+  1. macro F₀.₅ on the private split — maximise;
+  2. **mean candidates per Source 1 entity — minimise.** "The approach that
+     generates a smaller candidate set per Source 1 entity will be ranked higher
+     in the final evaluation beyond the public/private leaderboard."
+  Axis 2 is a tiebreak applied after the leaderboard, so score still dominates —
+  but the top 500 are all above 0.95, i.e. tightly clustered, which is exactly
+  the regime where a tiebreak decides placings. v1 measured **76.8 candidates
+  per S1 entity**; v2's figure is unmeasured. See `ps.md` for the full rule and
+  the prune-stage design if the number comes back high.
 
 ### Hard constraints
 | Constraint | Detail |
 |---|---|
 | External data | **BANNED** — APIs, geocoding, registries, internet augmentation. Disqualification |
 | Models | MIT/Apache 2.0 only, ≤8B params. **We use NO pretrained weights** — LightGBM from scratch, so satisfied by construction |
-| Reproducibility | **Graded.** Package must regenerate both outputs standalone |
+| Reproducibility | **Graded.** Package must regenerate both outputs standalone. `requirements.txt` rebuilt 2026-09-25 from actual imports — the previous file was a whole-machine `pip freeze` that omitted lightgbm, sparse_dot_topn, rapidfuzz and Unidecode |
+| Blocking parsimony | **Ranked.** `candidate_pairs.tsv` and the code producing it are reviewed; smaller candidate sets rank higher |
 | Deadline | <48h from 2026-09-25. Submissions **unlimited** |
 
 ---

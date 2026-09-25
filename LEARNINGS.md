@@ -78,6 +78,27 @@ for `Cornelius`. These are *mechanical* corruptions. If noise is synthetic,
 inverting the transforms beats fuzzy matching — and it explains leaderboard
 scores (0.9859) that are implausible for genuine real-world ER.
 
+**H11 — a live problem statement is a moving target; re-read it, don't recall
+it.** The organisers added an update banner to the top of the portal PS
+declaring that candidate-set size is a ranking criterion. Nine chunks of PS text
+had been logged verbatim in `ps.md` and treated as complete; the banner was
+never in them. An open question was sitting unresolved in `ps.md` ("is
+`candidate_pairs.tsv` judged?") that the banner answered directly. Cost: a
+blocking config chosen against the wrong objective function, caught only because
+the user re-sent the PS unprompted. **Re-read the live rules at every phase
+boundary, and treat any question marked "unclear" as a standing action item, not
+a footnote.**
+
+**H12 — a swept table is only as useful as its unconfounded cells.** The v2
+sweep varied `top_n` and `max_df` together, and I described the result as "the
+recall config" as though it were one knob. It is two, and they act on different
+axes: `top_n` sets candidate *volume* (how many neighbours per entity),
+`max_df` sets candidate *quality* (which n-grams carry weight). Under a rule
+that penalises volume, that distinction is the whole decision. I nearly reported
+a conflict that did not exist because I recalled the config from a summary
+instead of reading `BlockingConfig`. **Name which axis each hyperparameter moves
+before trading them off, and read the config, don't remember it.**
+
 ---
 
 ## 0. WHERE WE STAND

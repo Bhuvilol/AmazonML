@@ -710,10 +710,88 @@ Ranked by how much each changes the build.
 
 7. **Hard deadline** — still unstated.
 
-8. **Is `candidate_pairs.tsv` judged, even if unscored?** The PS says it is used
-   to analyse blocking quality and verify the pipeline. Whether that feeds final
-   standings is unclear, and it changes how much effort the reduction ratio
-   deserves.
+8. ~~**Is `candidate_pairs.tsv` judged, even if unscored?**~~ → **RESOLVED, and
+   it changes strategy.** See "Candidate-set size is a ranking criterion" below.
+
+---
+
+## ⚠️ Candidate-set size is a ranking criterion (PS update banner)
+
+Added to the top of the live problem statement, and **not present in the nine
+chunks logged below**. Captured 2026-09-25 from a screenshot of the portal:
+
+> 📣 **Update: `candidate_pairs.tsv` is part of your final submission**
+>
+> 1. **Blocking has to scale.** Amazon resolves business entities across
+>    billions of records, so comparing every record with every other one is not
+>    an option. Your blocking / candidate-generation step must cut the search
+>    space to a small candidate set per Source 1 entity.
+> 2. **Candidate generation counts toward the final ranking.** We will review
+>    your `candidate_pairs.tsv` and the code that produces it when deciding
+>    final rankings, alongside your `matching_results.tsv` score. **The approach
+>    that generates a smaller candidate set per Source 1 entity will be ranked
+>    higher** in the final evaluation beyond the public/private leaderboard.
+
+### What this changes
+
+Open question 8 above assumed the reduction ratio might be cosmetic. It is not.
+There are **two** ranked axes, not one:
+
+| Axis | Measured by | Direction |
+|---|---|---|
+| Match quality | macro F₀.₅ on the private split | maximise |
+| Blocking parsimony | mean candidates per Source 1 entity | **minimise** |
+
+The second axis is a tiebreak applied *after* the leaderboard, so score still
+dominates — but among teams clustered at similar scores (and the top 500 are all
+above 0.95, i.e. **very** clustered), candidate volume is what separates them.
+
+### Where the v2 config actually stands
+
+The v2 rebuild was chosen on recall ceiling alone, before this rule was known.
+Checked against `pipeline.BlockingConfig` rather than assumed, it turns out to
+sit in a defensible place on both axes — but for the wrong reason (compute cost,
+not parsimony):
+
+| config | US ceiling | blocking time | mean cand / S1 |
+|---|---|---|---|
+| v1 — `top_n=40`, `max_df=0.01`, + exact | 0.9531 | 376 s | **76.8** (measured) |
+| **v2 (running) — `top_n=40`, `max_df=0.50`, + exact** | ~0.98 | ~600 s | **?** — must measure |
+| rejected — `top_n=100`, `max_df=0.50`, + exact | 0.9825 | 1412 s | ~2x v2 |
+
+`top_n` stayed at 40. The recall came almost entirely from relaxing `max_df`
+(0.01 -> 0.50), which is a *pruning* change, not a *fan-out* change: it alters
+which n-grams carry weight, not how many neighbours are kept per entity. So the
+candidate count per S1 entity is bounded by the same `top_n=40` union as v1.
+
+**This is the key structural fact.** `top_n` sets candidate volume; `max_df`
+sets candidate quality. v2 bought recall on the quality axis and left the volume
+axis untouched. Under the new ranking rule that is the right trade, arrived at
+by luck rather than design.
+
+### What still has to be measured
+
+Volume is bounded by `top_n`, but not equal to it — the union of two top-40
+lists plus exact-key groups produced a mean of 76.8 in v1, and `max_df=0.50`
+changes which neighbours clear `min_sim`, so v2's mean will differ. **Measure
+the v2 mean the moment the shards land**, before touching anything else.
+
+### The prune stage, if the number comes back high
+
+The PS defines `candidate_pairs.tsv` as *"the exact set of records you feed into
+your matching model for inference"* and states: **"If your pipeline has several
+blocking/filtering stages, `candidate_pairs.tsv` is the last one."**
+
+Wide blocking is therefore not penalised — only a wide *final* set is:
+
+```
+wide recall-greedy blocking  ->  cheap high-recall prune  ->  candidate_pairs.tsv  ->  model
+```
+
+The prune must be cheap (no model inference) and near-lossless on recall. It
+cuts the audited artefact and real inference cost together. This is the
+structure the PS describes, not a loophole. Only build it if the measured mean
+justifies it.
 
 ### Resolved by chunk 9
 
