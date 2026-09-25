@@ -9,6 +9,77 @@ Companions: `CONTEXT.md` (state + facts), `ps.md` (problem statement),
 
 ---
 
+## ★ HEURISTICS — the transferable lessons
+
+These are the rules I would give another engineer starting this problem. Each
+one was paid for with a wrong turn today.
+
+### H1. Data-first beats mechanism-first. Every time.
+Scorecard for this project: **9 predictions reasoned from a plausible mechanism
+were wrong. 3 findings read directly off the data were right and large.**
+
+| source | outcome |
+|---|---|
+| "singletons must be a big lever" | wrong (5.58%) |
+| "mutual exclusivity must buy precision" | wrong (0.0000) |
+| "address is the bridge for cross-script" | wrong for India |
+| "numeric tokens must help India" | wrong (+0.004) |
+| "France abstention is the threshold" | wrong (16%→14.5%) |
+| **counted suffix tokens in the data** | **right — limittedd 40%** |
+| **read 100 actual missed pairs** | **right — 85% are ranking failures** |
+| **re-measured max_df at real scale** | **right — +2.6 points** |
+
+If a hypothesis can be checked in 15 minutes, check it. Do not build on it.
+
+### H2. A hyperparameter tuned on a sample MUST be re-validated at full scale.
+`max_df=0.01` cost 1.7 points on a 369k pool and **2.6 points on the real 6.19M
+pool** — and the sample made it look like a free 21x speedup. Sampling changes
+the *difficulty* of a task, not just its size. This single error probably
+accounted for most of our gap to the leaderboard.
+
+### H3. Read the failures. Do not theorise about them.
+Dumping 100 missed pairs side-by-side took ten minutes and overturned the whole
+diagnosis. We found pairs with **byte-identical normalised keys** being missed —
+something no amount of reasoning about cross-script or DBA names would have
+surfaced.
+
+### H4. Decompose the metric before optimising it.
+Measuring precision and recall separately proved that **even perfect precision
+caps us at 0.952** — which killed model changes, feature work, and threshold
+tuning as viable directions in one measurement. Know which half you are losing.
+
+### H5. A cap or filter can defeat the very case a feature exists for.
+Exact-key blocking was built to catch common names like "office of housing",
+then a `max_group=100` cap **skipped keys with many mates** — i.e. exactly those
+names. Gain fell to +0.67. When adding a guard, ask which cases it removes.
+
+### H6. Absence of an error is not evidence of success.
+A truncated 632 MB download and an expired auth token both looked like success
+to code that only checked for the absence of a failure string. Verify by
+**content or size**, never by exit code alone, when a network is involved.
+
+### H7. Recall is a ceiling; precision is a dial.
+In a two-stage matcher, blocking sets a hard bound nothing downstream can
+exceed. Tune the two stages with **opposite** biases: recall-greedy generation,
+precision-biased decision. Conflating them is the classic error.
+
+### H8. When the metric is macro and per-entity, per-entity behaviour matters.
+Country-level abstention rates (US 6.54%, India 8.58%, France 16.11% against a
+5.58% true rate) exposed a real defect that aggregate scores hid completely.
+Always slice by the natural partition.
+
+### H9. Prefer guarantees to rankings where you can afford them.
+A hash join on an exact key has no top-k cutoff. Similarity ranking silently
+drops true matches when a key is common. Use both.
+
+### H10. Suspect generated data, and look for the generator.
+`"-- Holloway Peak Inc Seafood"`, `16rd Saint` for `16th Street`, `CORNELISU`
+for `Cornelius`. These are *mechanical* corruptions. If noise is synthetic,
+inverting the transforms beats fuzzy matching — and it explains leaderboard
+scores (0.9859) that are implausible for genuine real-world ER.
+
+---
+
 ## 0. WHERE WE STAND
 
 | | |
@@ -207,11 +278,24 @@ India is 47% of the test set and has the worse recall. US addresses being
 
 ## 6. HYPOTHESES FOR THE REMAINING GAP (ranked)
 
-**H1 — max_df destroyed recall at scale.** Under measurement. Blocking is
-~2.6 h for the full test, so even a 5x slowdown is affordable.
+**H1 — max_df destroyed recall at scale. CONFIRMED, +2.6 points.**
 
-**H2 — top_n far too low.** Blocking time is flat in top_n; only downstream
-scoring grows. 150-300 candidates is cheap.
+| max_df | recall | secs |
+|---|---|---|
+| 0.01 (was deployed) | 0.9464 | 212 |
+| 0.10 | 0.9712 | 626 |
+| **0.50** | **0.9728** | **597** |
+
+0.5 costs no more than 0.1, so the aggressive setting bought nothing past the
+first step. **This was the single largest error of the project.**
+
+**H2 — top_n too low.** Blocking time is flat in top_n; only downstream scoring
+grows. Under measurement at 100.
+
+**H2b — exact-key blocking. PARTIAL: +0.67 points, then a bug found.**
+First measurement gave only 0.9464 → 0.9531 because `max_group=100` *skipped*
+keys with many mates — precisely the common names ("office of housing") the
+blocker exists to catch. Now truncates instead of skipping. See heuristic H5.
 
 **H3 — the noise is GENERATED, not natural.** Evidence: `"-- Holloway Peak Inc
 Seafood"`, systematic legal-suffix swaps, controlled typos, token
@@ -221,9 +305,27 @@ transform** beats general fuzzy matching by a wide margin. A 0.986 top score is
 implausibly high for genuinely messy real-world ER — this is the theory that
 best explains the top of the leaderboard.
 
-**H4 — transliteration.** 23.5% of India names are non-Latin. Rejected earlier
-using the GLOBAL 2.26% no-bridge figure when India's is 5.6% — wrong statistic
-on the partition that is 47% of the test set.
+**H4 — transliteration. CONFIRMED and BUILT.**
+
+Measured on 4,000 true pairs with a non-Latin target name:
+
+| key | mean | median | >0.15 |
+|---|---|---|---|
+| raw | 0.286 | **0.000** | 43.1% |
+| transliterated (`unidecode`) | 0.479 | **0.267** | 78.7% |
+
+**34.9% of cross-script pairs move from ~0 to usable.** The data contains
+Devanagari, Tamil, Telugu, Gujarati and Odia — more scripts than the two
+originally identified.
+
+Romanisation is phonetic, not translation ('राम' → 'raam'), which suffices for
+blocking. Crucially, the Latin suffix list does NOT recognise the romanised
+forms, so they had to be derived by counting tokens in 60,000 transliterated
+names: `limittedd` 40.0%, `praaivett` 22.7%, `praiveett` 7.1%, `li` 5.3%,
+`elelpii` (LLP) 2.6%. Adding them lifted a worked example from 0.20 to 0.53.
+
+`unidecode` is a character mapping table — an algorithm, not a lookup of
+business identities — so it is consistent with the external-data rule.
 
 **H5 — multilingual embeddings** (LaBSE / multilingual-E5; MIT/Apache, <8B, so
 licence-clean). The only approach that addresses DBA/trade names, where two
