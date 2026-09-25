@@ -46,8 +46,9 @@ real-world business.
 | **Training run** | ✅ **macro F₀.₅ = 0.9099**, threshold 0.575 |
 | **France predictions** | ✅ 259,452 rows, verified, downloaded |
 | **US predictions** | ✅ 663,106 rows, verified, downloaded |
-| **India predictions** | 🟡 **RUNNING** (~3h elapsed) |
-| Merge + validate | ⏳ local, once India lands |
+| **India predictions** | ✅ 809,986 rows, verified |
+| **Merged output** | ✅ 1,732,544 rows — matching 83 MB, candidates 1.6 GB |
+| Official validator | 🟡 running |
 | Submission uploaded | ❌ not yet |
 | Methodology doc | ✅ written (needs final numbers) |
 | Submission zip | ❌ not yet assembled |
@@ -158,8 +159,13 @@ Feature gain: `addr_token_set` 50.6, `name_jaro` 18.9, `nums_token_set` 6.2.
 |---|---|---|---|---|---|
 | France | 259,452 | 19,482,447 (75.1/ent) | 13 min | **16.11%** | 2.90 |
 | US | 663,106 | 50,739,173 (76.5/ent) | 123 min | **6.54%** | 3.33 |
-| India | 809,986 | — | running | — | — |
+| India | 809,986 | 62,869,162 (77.6/ent) | 223 min | **8.58%** | 3.15 |
+| **merged** | **1,732,544** | **133,090,782** | — | — | — |
 | *(train)* | | | | *5.58%* | *3.67* |
+
+Country empty-rate ordering is consistent with difficulty: US 6.54% (in train,
+Latin) < India 8.58% (in train, 23% non-Latin) < **France 16.11%** (not in
+train at all). Train actual singleton rate is 5.58%.
 
 All downloaded files format-verified: correct row counts, 0 malformed rows,
 0 self-matches, no spaces after commas.
