@@ -174,9 +174,35 @@ directly places it at **0.60**.
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** **0.9313** on held-out validation entities
-  (US partition, full target pool), against an all-empty baseline of 0.0508 and
-  a pair-level recall ceiling of 0.9278. Pairwise average precision 0.992.
+- **F_0.5 Score (macro):** **0.890575 on the public leaderboard.**
+  Held-out validation (US + India, full target pools) gave **0.9099** against an
+  all-empty baseline of 0.0582. Validation was therefore ~2 points optimistic —
+  well calibrated for a metric this sensitive.
+
+  | reference | score |
+  |---|---|
+  | all-empty baseline | 0.0582 |
+  | local validation (US + India) | 0.9099 |
+  | **public leaderboard (US + India + France)** | **0.890575** |
+
+  Blocking recall ceiling, measured against the full target pool: **US 0.9462,
+  India 0.8796**. Pairwise average precision 0.9878.
+
+  **The validation-to-leaderboard gap decomposes to France.** Validation could
+  only cover US and India, because France appears nowhere in the training data.
+  Taking the trained countries at their validation level:
+
+  ```
+  0.85 × 0.91 + 0.15 × France = 0.8906   =>   France ≈ 0.78
+  ```
+
+  France scores roughly 13 points below the trained countries on 15% of the
+  test set. This is inference rather than direct measurement — it assumes
+  US/India transfer cleanly — but an independent signal agrees: France abstains
+  on 16.11% of entities while US abstains on 6.54% and the true singleton rate
+  is 5.58%. Under F_0.5 abstention has no protective value on an entity that
+  does have matches (it scores 0.0, exactly as a wrong guess would), so
+  over-abstention is pure loss.
 
   The score exceeding the pair-level ceiling is expected, not an error: the
   ceiling is measured over *pairs* while the score is a *per-entity* macro
@@ -189,21 +215,58 @@ directly places it at **0.60**.
   tokens.
 
 - **Common false negatives (missed matches):** dominated by blocking, not by
-  the classifier — 7.2% of true pairs never reach the model. The largest
-  identified group is records whose name is non-Latin **and** whose address is
-  also non-Latin (2.26% of all true pairs), leaving no shared-character bridge
-  in either field. DBA/trade-name pairs are the other structural group: a
-  legitimate match whose two names share almost no tokens cannot be recovered
-  by string similarity at all.
+  the classifier. Average precision is 0.9878, so the scorer is close to
+  saturated; recall is the binding constraint.
 
-**A hypothesis that did not survive measurement.** We verified that
-Source-2/3 records are mutually exclusive across Source-1 entities (zero
-violations in 7.6M pairs) and expected that resolving contested claims to the
-highest-scoring entity would be a free precision gain. Measured, it changed the
-score by **0.0000** — at a 0.60 threshold only about 1 claim in 15,000 is
-contested, because the classifier is already precise enough that conflicts are
-vanishingly rare. We retain the constraint as a cheap correctness guarantee but
-do not claim it as a contribution.
+  Per-country recall ceilings make the cause explicit:
+
+  | | India | US |
+  |---|---|---|
+  | blocking recall | **0.8796** | 0.9462 |
+  | name non-Latin | 23.5% | 7.5% |
+  | **address non-Latin** | **22.6%** | **0.0%** |
+  | no Latin bridge at all | 5.6% | 0.0% |
+
+  For India, character n-grams fail on *both* fields simultaneously. We had
+  initially assumed the address would always serve as the bridge for
+  cross-script names; that holds for US, where addresses are 100% Latin, and
+  fails for India.
+
+  Notably, India misses 11.5% of pairs while only 5.6% lack any cross-script
+  bridge — so roughly **6% are ranking failures**, where the true match is
+  representable but falls outside the top-40 candidates, rather than signal
+  failures. That points at candidate depth rather than new signals.
+
+  DBA/trade-name pairs are the other structural group: a legitimate match whose
+  two names share almost no tokens cannot be recovered by string similarity.
+
+### Hypotheses that did not survive measurement
+
+We report these because they shaped the final design as much as the successes
+did, and because each looked mechanically sound beforehand.
+
+**Mutual exclusivity.** We verified that Source-2/3 records are mutually
+exclusive across Source-1 entities (zero violations in 7,638,365 pairs) and
+expected that resolving contested claims to the highest-scoring entity would be
+a free precision gain. Measured, it changed the score by **0.0000** — at the
+chosen threshold only about 1 claim in 15,000 is contested, because the
+classifier is already precise enough that conflicts are vanishingly rare.
+Retained as a cheap correctness guarantee; not claimed as a contribution.
+
+**Numeric-token blocking.** Since digits are script-invariant, and 82.6% of
+India's true pairs share an exact address number (19.7% having an unmatchable
+non-Latin name *and* a shared number), an exact numeric index looked like the
+natural fix for the India recall gap. Measured on India against the full
+4,133,346-record target pool: recall went 0.8851 → **0.8893**, i.e. **+0.4
+points for 34% more candidates.** The signal is largely redundant with address
+blocking, because the address blocking key already contains those digits as
+text and character 3-grams match them. The 82.6% figure was a correlation, not
+untapped signal. Not enabled.
+
+**Singleton detection as a primary lever.** Early analysis over-weighted this.
+The measured singleton rate is **5.58%**, so an all-empty submission scores
+0.0582 and the abstain decision is a guard rather than the main lever. The
+dominant term is non-singleton set quality.
 
 ---
 
