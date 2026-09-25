@@ -1,420 +1,259 @@
-# CONTEXT — quick reference
+# CONTEXT — single source of truth
 
-Dense factual reference so nothing measured gets lost or re-derived.
-**Every number here was measured, not estimated.** Inference is labelled.
-Companions: `ps.md` (problem facts), `brainstorm.md` (strategy).
+Authoritative record of this project. **Every number here was measured, not
+estimated.** Inference is labelled as inference. Companions: `ps.md` (problem
+statement facts), `brainstorm.md` (strategy reasoning).
+
+Last updated: 2026-09-25 15:20.
 
 ---
 
-## 1. Scale (measured)
+## 1. MISSION
+
+**ML Challenge 2026 — Business Entity Resolution.** Team **Lassi** (solo, Bhuvi).
+
+Given business records from 3 independent sources with noisy, inconsistent
+fields and **no shared identifiers**, determine which records refer to the same
+real-world business.
+
+- Source 1 is the deduplicated reference. For each S1 entity, find all matching
+  records in S2 and S3. An entity may match **zero, one, or many**.
+- **Metric: macro-averaged F₀.₅** — computed per S1 entity, then averaged.
+  `F_0.5 = (1.25 × P × R) / (0.25 × P + R)`. Precision weighted 2× over recall.
+- **Singletons score 1.0 if correctly predicted empty, 0.0 if anything is
+  predicted.** Included in the average.
+- Deliverables: `matching_results.tsv` (scored) + `candidate_pairs.tsv`
+  (audited) + runnable code + methodology doc, as `Lassi_submission.zip`.
+- **Winning = a submission that scores.** Not an impressive system.
+
+### Hard constraints
+| Constraint | Detail |
+|---|---|
+| External data | **BANNED** — APIs, geocoding, registries, internet augmentation. Disqualification |
+| Models | MIT/Apache 2.0 only, ≤8B params. **We use NO pretrained weights** — LightGBM from scratch, so satisfied by construction |
+| Reproducibility | **Graded.** Package must regenerate both outputs standalone |
+| Deadline | <48h from 2026-09-25. Submissions **unlimited** |
+
+---
+
+## 2. CURRENT STATUS (the dashboard)
+
+| Component | State |
+|---|---|
+| Pipeline code (9 modules) | ✅ complete, committed, pushed |
+| Unit tests | ✅ 28/28 pass |
+| Synthetic end-to-end test | ✅ PASS incl. unseen-country path |
+| **Training run** | ✅ **macro F₀.₅ = 0.9099**, threshold 0.575 |
+| **France predictions** | ✅ 259,452 rows, verified, downloaded |
+| **US predictions** | ✅ 663,106 rows, verified, downloaded |
+| **India predictions** | 🟡 **RUNNING** (~3h elapsed) |
+| Merge + validate | ⏳ local, once India lands |
+| Submission uploaded | ❌ not yet |
+| Methodology doc | ✅ written (needs final numbers) |
+| Submission zip | ❌ not yet assembled |
+
+**Repo:** `github.com/Bhuvilol/AmazonML`, HEAD `867b2f8`, 36 files.
+**Kaggle:** user `zeroxBhuvii`. Token expires in ~1.1h → needs
+`kaggle auth login --force` when it does (kernels keep running regardless).
+
+---
+
+## 3. THE DATA (all measured)
 
 | Split | S1 | S2 | S3 |
 |---|---|---|---|
 | train | 2,206,821 | 5,034,616 | 5,285,603 |
 | test | 1,732,544 | 4,887,273 | 5,082,316 |
 
-~2.4 GB of TSV. Test pair space **1.7e13** → blocking is existential.
+~2.4 GB TSV. Test pair space **1.7e13** ⇒ blocking is existential.
 
-### Country split (test S1: France = 15.0%)
-| Country | S1 test | S2 test | S3 test |
-|---|---|---|---|
-| India | 809,986 | 2,312,565 | 2,405,000 |
-| US | 663,106 | 1,871,330 | 1,945,701 |
-| France | 259,452 | 703,378 | 731,615 |
+### Country split
+| Country | S1 test | S2 test | S3 test | in train? |
+|---|---|---|---|---|
+| India | 809,986 | 2,312,565 | 2,405,000 | yes (883,188) |
+| US | 663,106 | 1,871,330 | 1,945,701 | yes (1,323,633) |
+| **France** | **259,452** | 703,378 | 731,615 | **NO — 15.0% of test** |
 
-train S1: US 1,323,633 / India 883,188. **No France in train.**
-
----
-
-## 2. Ground truth (measured, full file)
-
-- GT rows **2,206,822 == S1 rows** → exactly one row per entity, no ambiguity
-- **Singletons 123,247 = 5.58%** → all-empty submission scores **0.0558**
-- Non-singletons 2,083,574 (94.42%), **mean 3.67 matches**, max 11
+### Ground truth
+- GT rows **2,206,822 == S1 rows** ⇒ exactly one row per entity
+- **Singletons 123,247 = 5.58%** ⇒ all-empty submission scores **0.0558**
+- Non-singletons 94.42%, **mean 3.67 matches**, max 11
 - Total true pairs **7,638,365**
-- Cardinality: 1→5.4%, 2→17.0%, 3→24.1%, 4→21.9%, 5→14.6%, 6→7.5%, 7→2.9%, 8+→1.1%
 
----
-
-## 3. Structural findings (the levers)
-
-| # | Finding | Evidence | Consequence |
-|---|---|---|---|
-| Q2 | **Perfect mutual exclusivity** | 7,638,365 distinct ids, **0** claimed by >1 S1, max=1 | Each S2/S3 record belongs to ≤1 S1. Resolve contested records to best scorer → free precision. NOT YET IMPLEMENTED |
-| Q3 | **Zero cross-country matches** | 693,069 pairs checked, 100% same-country | Country = lossless hard partition. Solves memory |
-| Q4 | One GT row per entity | row counts equal | No missing-vs-singleton ambiguity |
-
-### Cross-script (measured on all 7,638,365 true pairs)
-| S2/S3 name | address | pairs | share |
-|---|---|---|---|
-| latin | latin | 6,057,423 | 79.30% |
-| latin | NON-LATIN | 520,161 | 6.81% |
-| **NON-LATIN** | latin | 888,096 | **11.63%** |
-| **NON-LATIN** | **NON-LATIN** | 172,685 | **2.26%** |
-
-S1 names **0%** non-ASCII. S2 names **15.1%**, S3 **11.5%**, S2 addr **9.4%**.
-→ **Address blocking mandatory** (bridges 11.63%). Transliteration rejected: only 2.26% hole.
-
----
-
-## 4. Locked decisions (measured, not guessed)
-
-| Decision | Value | Evidence |
+### Three structural findings
+| # | Finding | Evidence |
 |---|---|---|
-| Partition | by country | Q3: zero cross-country |
-| Vectoriser | char_wb **3-grams**, `max_df=0.01` | 16s vs 338s baseline, recall 0.9709 vs 0.9883 |
-| `top_n` | **20** name + 20 addr | 20→30 buys +0.47% recall for +52% pairs |
-| Candidate union | name ∪ addr, **scores kept separate** | name_cos=0 is informative (cross-script regime) |
-| Transliteration | **NO** | 2.26% hole, diluted further by macro averaging |
-| Pretrained models | **NONE** | LightGBM from scratch → MIT/Apache constraint trivially met |
+| Q2 | **Perfect mutual exclusivity** — each S2/S3 record belongs to ≤1 S1 entity | 7,638,365 ids, **zero** claimed twice |
+| Q3 | **Zero cross-country matches** ⇒ country is a lossless partition | 693,069 pairs checked, 100% same |
+| — | **Cross-script problem** | S1 is 0% non-ASCII; S2 15.1%, S3 11.5% |
 
-### Blocking sweep (20k S1 × 369k targets)
-| config | secs | recall |
+### Cross-script detail (all 7.6M true pairs)
+| S2/S3 name | address | share |
 |---|---|---|
-| no max_df (2,3) | 338 | 0.9883 |
-| max_df=0.10 (2,3) | 149 | 0.9874 |
-| max_df=0.01 (2,3) | 25 | 0.9667 |
-| **max_df=0.01 (3,3)** | **16** | **0.9709** |
-| max_df=0.003 (3,3) | 9 | 0.8368 (cliff) |
-
-### top_n sweep (blocking time is FLAT ~16s across all)
-| top_n | recall | cand/entity | pairs @1.73M |
-|---|---|---|---|
-| 5 | 0.9119 | 8.4 | 14M |
-| 10 | 0.9561 | 17.9 | 31M |
-| **20** | **0.9709*** | **37.4** | **65M** |
-| 30 | 0.9756* | 57.0 | 99M |
-
-\* measured against a 369k **toy** target pool. **Realistic ceiling against the
-full 6,186,873-record US train pool is 0.9278** (64,215/69,211). Always quote
-the realistic number; the toy pool over-states recall by ~4.3 points because
-10x more distractors compete for the same top-20 slots.
-
----
-
-## 4b. Performance facts (hard-won)
-
-| Fact | Detail |
-|---|---|
-| **`sparse_dot_topn` n_threads trap** | It does `n_threads = n_threads or 1`, so **0 or None runs SERIAL**. Must pass **`-1`**. Cost of the bug: 2.7x on this machine |
-| Threading gain (M1, 8 cores) | 243s → 89s = **2.7x**, byte-identical output (394,120 nnz both). Not 8x — memory-bandwidth bound |
-| Vectorising is NOT the bottleneck | `TfidfVectorizer.fit_transform` on **6,186,873 docs = 41s**. The matmul dominates |
-| Blocking cost (threaded) | 20k source x 6.19M targets = **89s per field** ⇒ ~4.45 ms/source-row at 6.19M targets; scales ~linearly in both source rows and target count |
-| **macOS LightGBM** | needs `brew install libomp` or `import lightgbm` fails with `Library not loaded: @rpath/libomp.dylib`. Must go in the submission README |
-
-### Full-run projection (threaded, top_n=20, max_df=0.01, 3-grams)
-| Partition | S1 | targets | est. both fields |
-|---|---|---|---|
-| US test | 663,106 | 3,817,031 | ~1.0 h |
-| India test | 809,986 | 4,717,565 | ~1.5 h |
-| France test | 259,452 | 1,434,993 | ~9 min |
-| **test total** | | | **~2.6 h** |
-
-Train blocking on a ~150k entity sample adds ~25 min. **Fits in 48h — no EC2 needed.**
-Escalation trigger did NOT fire: the bottleneck was a config bug, not hardware.
-
----
-
-## 5. Features — 20, throughput 0.19M pairs/sec (65M ≈ 6 min)
-
-Separation (pos_mean − neg_mean), US sample:
-`nums_exact` **.615** | `nums_token_set` .593 | `addr_cos` .511 | `name_token_set` .429 |
-`name_token_sort` .417 | `addr_token_set` .420 | `name_ratio` .405 | `name_tok_diff` **−.592**
-
-**Exact address-number match is the single strongest feature**: 63.1% of positives vs 1.6% of negatives.
-
-⚠️ `tgt_is_s3` showed .439 separation = **SAMPLING ARTIFACT**. Distractors were
-`head()` of concat(S2,S3) ⇒ nearly all S2, positives ~50/50. Distractor pools
-must be random or full-population. Do not trust that number.
-
----
-
-## 6. Validator rules (read from `utils/validate_submission.py`)
-
-- Header **exact**: `source1_entity_id\tmatched_entity_ids` / `...candidate_entity_ids`
-- **Every row needs a tab**, even empty ones → `S1-1\t` not `S1-1`
-- **No space after commas** — ids are NOT stripped; `S2-1, S2-2` ⇒ ` S2-2` ⇒ prefix error
-- One row per test S1 entity; no dup rows; no dup ids in a list; no `S1-` self-match
-- ID-existence check **OFF by default**, and is a *diagnostic* not a gate
-- matching ⊆ candidates is a **WARNING, never a failure**
-- Must be valid UTF-8
-
----
-
-## 7. Environment
-
-- Python **3.11.16** venv (system 3.14 too new). `sagemaker<3`, `sqlalchemy<2.1` mandatory
-- Deps: polars, scikit-learn, scipy, lightgbm, rapidfuzz, sparse-dot-topn (all BSD/MIT/Apache)
-- Machine: **M1, 8 cores, 8 GB RAM**
-- AWS ap-south-1, IAM `bhuvi-dev`. **GPU quota 0, requests `CASE_OPENED`** (human review, not arriving)
-- EC2 standard **16 vCPU available**; SageMaker notebook max `ml.r5.xlarge` = **4 vCPU = half the M1**
-- Escalation trigger: OOM/slow ⇒ EC2 `r5.4xlarge`. Poor score ⇒ NOT a hardware problem
-- Repo: `github.com/Bhuvilol/AmazonML`, git identity `Bhuvilol <bhabeshcse@gmail.com>`, no Claude attribution, commits 5-15 words
-
----
-
-## 8. Corrections to my own earlier claims (do not re-introduce)
-
-1. Chunk 2: predicted **two** id-list columns → actually **one** (`matched_entity_ids`, S2+S3 mixed)
-2. Chunk 4: inferred **no leaderboard** → there **is** one (public subset + private remainder)
-3. Claimed precision weighted **4:1** → PS says **2×** (conventional F_β reading)
-4. Claimed ids **zero-padded 5-digit** → actually variable length (`S1-925783039`)
-5. **Over-weighted singletons** (illustrated ~35%, actually **5.58%**) — abstain gate is a guard, not the main lever
-6. **Under-weighted cross-script**; it is a bigger problem than France
-7. Blocking alignment bug: **scipy prunes explicit zeros in sparse addition** — `zeros + X` collapses to X's own pattern. Fixed with sorted int64-key gather
-8. Ran blocking **single-threaded for hours** without noticing — `n_threads=0` is silently serial in sparse_dot_topn
-9. Recall 0.9709 was measured on a **toy 369k target pool**; realistic is **0.9278**. Never quote toy-pool numbers
-
----
-
-## 9. Build state
-
-| File | State |
-|---|---|
-| `src/metric.py` | ✅ 27/27 tests, PS example = 0.714 |
-| `src/io_tsv.py` | ✅ works on real 1.7M-row files |
-| `src/submit.py` | ✅ **official validator PASS** on 1,732,544 rows |
-| `src/normalize.py` | ✅ verified on real noisy rows |
-| `src/blocking.py` | ✅ tuned; alignment bug fixed + asserted |
-| `src/features.py` | ✅ 20 features, 0.19M pairs/sec |
-| `src/model.py` | ✅ LightGBM, entity-grouped split, calibration report |
-| `src/decide.py` | ✅ threshold + singleton gate + **exclusivity resolution** (unit-verified) |
-| `src/pipeline.py` | ✅ paths/threads env-configurable, `--country` partials, `merge` |
-
-All-empty baseline written and validator-PASS → submittable now, scores ≈0.056,
-and reveals the public-subset singleton rate for free (submissions are unlimited).
-
----
-
-## 9b. FIRST REAL RESULT (US, 20k entities, full 6.19M target pool)
-
-| Metric | Value |
-|---|---|
-| **macro F_0.5 (validation)** | **0.9313** |
-| all-empty baseline | 0.0508 |
-| pair recall ceiling | 0.9278 |
-| best threshold | **0.600** (above 0.5, as F_0.5 predicts) |
-| pairwise AP | 0.992 |
-| blocking (threaded) | 325s for 20k x 6.19M |
-
-Threshold curve is FLAT near the peak (.55→.930, .65→.931, .75→.930) ⇒ robust, low overfit risk.
-
-**Score > recall ceiling is NOT a bug**: ceiling is pair-level, score is per-entity macro
-(3-of-4 matches still scores 0.9375; correct singletons score 1.0).
-
-### Feature gain % (differs from raw separation!)
-`nums_token_set` **33.6** | `name_ratio` 20.3 | `addr_cos` 10.0 | `addr_token_set` 9.7 |
-`addr_token_sort` 7.8 | `name_token_sort` 5.5 | `name_jaro` 4.3 | `name_token_set` 2.8 |
-`nums_exact` **0.9** (highest raw separation 0.615, but subsumed by nums_token_set)
-
-`tgt_is_s3` absent from top-10 ⇒ the earlier 0.439 separation really was the sampling artifact.
-
-### ⚠️ Prediction I got WRONG
-**Mutual exclusivity gave ZERO gain** (0.9313 both ways; only 1 contested claim in ~15,000).
-At threshold 0.6 the model is precise enough that conflicts are vanishingly rare. Kept as a
-cheap correctness guarantee, but it is NOT a differentiator. Do not re-inflate this claim.
-
-**Binding constraint is now RECALL (0.9278), not the model (AP 0.992).**
-
----
-
-## 9c. Recall sweep vs REAL 6.19M target pool (20k US entities)
-
-| top_n | min_sim | secs | cand/ent | recall | pairs@1.73M |
-|---|---|---|---|---|---|
-| 20 | 0.25 | 313 | 37.8 | 0.9279 | 65M |
-| **30** | **0.25** | **304** | **57.4** | **0.9397** | **100M** |
-
-**Blocking time is FLAT across top_n** (313s vs 304s) — top_n only costs
-downstream feature/scoring time (~+6 min for 65M→100M). +1.18 recall for
-~6 min is an easy trade. (40 / lower-min_sim configs still running.)
-
----
-
-## 9d. Robustness changes made
-
-- `submit.py` now **drops + counts** invalid ids instead of raising. A full
-  predict pass costs hours; aborting at the final write yields nothing, while a
-  submission missing a few ids still scores. `strict=True` restores fail-fast
-  for tests. Verified: drops duplicate / `S1-` self-match / bad prefix, still
-  writes valid rows incl. `S1-x\t` empties.
-- Memory projection for full train run: **~3.3 GB peak** at 150k entities/country
-  (8 GB available). RAM is not the constraint; wall-clock is.
-
----
-
-## 9e. Infrastructure: what failed and why (session 2)
-
-**Local machine RESET under load.** Diagnosis: memory, not heat. The training run
-held India's TF-IDF matrix (4.13M docs), then US's (6.19M docs), the feature
-matrices for BOTH countries, plus a `np.vstack` duplicating them → ~6-7 GB on an
-8 GB box → swap thrash → watchdog reset. My "4.0 GB peak" projection summed
-naively and was wrong.
-
-**AWS is BLOCKED — account is on the Free Plan.** Largest permitted instance:
-
-| allowed | vCPU | RAM |
-|---|---|---|
-| m7i-flex.large | 2 | 8 GiB |
-| c7i-flex.large | 2 | 4 GiB |
-| t3/t4g/t8i micro+small | 2 | 1-2 GiB |
-
-**All worse than the M1.** Account `920876082653` ("adarsh"), created 2026-06-06.
-Fix requires the USER to upgrade to a Paid Plan in the Billing console.
-Created and left in place for when/if that happens: S3 bucket `lassi-er-<acct>`
-(private), IAM role `LassiERInstanceRole` (SSM + that bucket only),
-`LassiERInstanceProfile`. Cost nothing while idle.
-
-**Pricing measured (ap-south-1, if the plan is ever upgraded):**
-`c6a.16xlarge` 64 vCPU/128 GiB **$1.496/hr** — same $/vCPU as the 8xlarge and
-HALF the Intel `c6i.16xlarge` ($2.72). AMD EPYC is the value pick.
-
-**CHOSEN PATH: Kaggle Notebooks** — 4 vCPU but ~30 GB RAM, 12h sessions, free.
-Fewer cores (slower) but the memory failure mode disappears.
-
----
-
-## 9f. ⚠️ BUG FOUND: index-offset mismatch (cost: a bogus 0.4690)
-
-```python
-all_cols.append(candidates.col + (entity_offset << 32))   # offset predictions
-all_truth.extend(truth)                                   # did NOT offset truth
-```
-
-Predictions and ground truth ended up in different index spaces, so every
-intersection for the SECOND country was empty → that whole country scored 0 →
-reported 0.4690 ≈ (0.93 + 0)/2. **The model was fine** (labels are built
-per-country and internally consistent); only threshold selection was corrupted.
-
-Fixed by offsetting both by a cumulative *target* offset. Pinned by
-`test_offset_predictions_against_unoffset_truth_scores_zero`. Stale artifacts
-(threshold 0.4690) quarantined to scratchpad, NOT committed.
-
-Also fixed: `.gitignore` had `artifacts/**` which did not match at depth —
-a 4.1 MB `model.txt` nearly got committed. Now `**/artifacts/`.
-
----
-
-## 9g. ⚠️ BIGGEST REMAINING LEVER: India recall
-
-From `blocking_recall.json` (100k entities/country, top_n=40):
-
-| country | recall |
-|---|---|
-| US | **0.9462** |
-| **India** | **0.8796** |
-
-India is **6.7 points worse** and is the LARGEST test partition (809,986 of
-1,732,544 entities = 47%). Almost certainly the Devanagari/Tamil cross-script
-problem. Worth more than any further top_n increase. Untried ideas:
-transliteration, or an exact numeric-token inverted index as a third blocking
-signal (numerics survive script changes intact).
-
----
-
-## 9h. Synthetic end-to-end test (new, in `tests/make_synthetic.py`)
-
-Validates the whole CLI chain in seconds: train → per-country predict → merge →
-official validator with `--check-ids`. Includes a country ("Zephyria") present
-ONLY in test, mirroring France, plus every named noise pattern and Devanagari.
-Result: **PASS**, 600/600 rows, and the unseen country ran at 89% matched.
-Use this before any long hosted run.
-
----
-
-## 9i. ⚠️ MEASURED AND REJECTED: numeric-token blocking
-
-Hypothesis: digits are script-invariant, so an exact numeric-token index should
-recover India pairs that char n-grams cannot reach. Supporting stats looked
-strong — 82.6% of India true pairs share an exact address number, and 19.7%
-have a non-Latin (unmatchable) name **and** a shared number.
-
-**Measured on India, 20k entities vs the full 4,133,346 target pool:**
-
-| config | cand/entity | recall | delta |
-|---|---|---|---|
-| name+addr | 77.8 | 0.8851 | — |
-| + numeric top_n=20 | 91.0 | 0.8883 | +0.0032 |
-| + numeric top_n=40 | 104.6 | 0.8893 | +0.0042 |
-
-**+0.4 points for +34% candidates. Not worth it. DO NOT ENABLE.**
-
-Why it failed: `addr_block` already contains the numbers as text, so char
-3-grams over "13 570 delhi" already match "570". The numeric signal is
-**redundant with address blocking** — it re-finds pairs already found. The
-82.6% figure was a correlation, not an untapped signal.
-
-Code is kept (inert unless `source_nums`/`target_nums` are passed) because it
-costs nothing and is a documented negative result for the write-up.
-
-### India country split (for reference)
+| latin / latin | | 79.30% |
+| latin / NON-LATIN | | 6.81% |
+| **NON-LATIN / latin** | | **11.63%** |
+| NON-LATIN / NON-LATIN | | 2.26% |
+
+**Per country** — this is why India is harder:
 | | India | US |
 |---|---|---|
 | name non-Latin | 23.5% | 7.5% |
 | **addr non-Latin** | **22.6%** | **0.0%** |
-| no Latin bridge at all | 5.6% | 0.0% |
-
-Recall 0.885 means 11.5% missed, but only 5.6% have no bridge — so ~6% are
-**ranking** failures (true match exists in-script but falls outside top-40),
-not signal failures. Higher top_n is the untested lever there, not new signals.
+| no Latin bridge | 5.6% | 0.0% |
 
 ---
 
-## 9j. TEST-RUN RESULTS (Kaggle, threshold 0.575 everywhere)
+## 4. ARCHITECTURE
 
-| stage | entities | candidates | runtime | empty% | mean matches |
+```
+load → normalise → block (union) → featurise → score → decide → write
+```
+One country partition at a time (lossless per Q3; bounds memory).
+**Country is discovered from data, never hard-coded** — France requirement.
+
+| Module | Role |
+|---|---|
+| `io_tsv.py` | TSV I/O; tab sep, no quoting, ids as str, empty≠null, polars-version-agnostic |
+| `normalize.py` | Vectorised: accent folding, legal-suffix strip, abbrev expansion, **sorted-token** blocking keys |
+| `blocking.py` | char_wb 3-gram TF-IDF + `sp_matmul_topn`, union of name & address |
+| `features.py` | 20 pairwise features via rapidfuzz |
+| `model.py` | LightGBM, **entity-grouped** splits |
+| `decide.py` | threshold + singleton gate + exclusivity resolution |
+| `pipeline.py` | orchestration, `--country` partials, `merge` |
+| `submit.py` | writers enforcing every validator rule; streaming |
+| `metric.py` | macro F₀.₅ with singleton convention |
+
+### Tuned parameters (all by measurement)
+| Param | Value | Evidence |
+|---|---|---|
+| `max_df` | 0.01 | 21× faster than none for 1.7pt recall; 0.003 collapses to 0.84 |
+| `ngram_range` | (3,3) | faster AND better recall than (2,3) at this max_df |
+| `top_n` | 40/40 | 0.9279@20 → 0.9397@30 → 0.9462@40; blocking time FLAT across k |
+| `min_sim` | 0.25/0.30 | **inert** — 0.25 vs 0.10 gave identical recall |
+| `n_threads` | −1 | sparse_dot_topn treats 0/None as SERIAL (2.7× loss) |
+| threshold | 0.575 | swept against macro F₀.₅; curve flat 0.475–0.65 |
+
+### Key design reasoning
+- **Union of name AND address blocking** recovers the 11.63% of pairs with a
+  non-Latin name but Latin address. Name-only concedes ~14% recall.
+- **Country as boolean `same_country`, never one-hot** — generalises to France.
+- **Blocking is recall-greedy; decision is precision-biased.** Opposite biases,
+  deliberately. For a 4-match entity: all 4 = 1.000, 3 of 4 = 0.9375, all 4 + 1
+  false positive = 0.8333. **Missing beats adding.**
+
+---
+
+## 5. RESULTS SO FAR
+
+### Training (Kaggle, 71 min, 100k entities/country)
+```
+macro F₀.₅ = 0.9099   threshold 0.575   all-empty baseline 0.0582
+```
+Blocking recall: **US 0.9462, India 0.8796**.
+Feature gain: `addr_token_set` 50.6, `name_jaro` 18.9, `nums_token_set` 6.2.
+
+### Test predictions
+| stage | entities | candidates | runtime | empty% | mean |
 |---|---|---|---|---|---|
-| train | 100k/country | — | 71 min | — | — |
 | France | 259,452 | 19,482,447 (75.1/ent) | 13 min | **16.11%** | 2.90 |
 | US | 663,106 | 50,739,173 (76.5/ent) | 123 min | **6.54%** | 3.33 |
 | India | 809,986 | — | running | — | — |
-| *(train actual)* | | | | *5.58%* | *3.67* |
+| *(train)* | | | | *5.58%* | *3.67* |
 
-Training result: **macro F_0.5 = 0.9099**, threshold 0.575, all-empty baseline 0.0582.
-Threshold curve flat 0.475-0.65 (0.9077-0.9099) ⇒ robust, not overfit.
+All downloaded files format-verified: correct row counts, 0 malformed rows,
+0 self-matches, no spaces after commas.
 
-### ⚠️ FRANCE ABSTAINS 2.5x MORE THAN US — likely ~1 point of score
-
-US empty rate (6.54%) tracks the training singleton rate (5.58%) almost exactly.
-France abstains at **16.11%**. With US as a control this is not noise: the model
-is genuinely less confident on France, which has zero training data, so the
-global 0.575 threshold is too conservative there.
-
-Under F_0.5, abstaining on an entity that DOES have matches scores 0.0 —
-identical to predicting entirely wrong ids. There is no safety in abstention;
-it only pays on genuine singletons (~5.6% base rate). So ~10% of French
-entities are likely scoring 0 unnecessarily. France is 15% of test ⇒ order of
-1 point of final score.
-
-**Planned experiment (submissions are unlimited):** bank submission A at 0.575,
-re-run France alone at a lower threshold (13 min), submit as B, compare
-leaderboard scores. Converts a blind tuning choice into a measurement.
-
-### Timing estimates: wrong FOUR times, always too optimistic
-Predicted France 30 min (actual 13), US 2.5h (actual 2.05h), India 4h (running
-past 2.5h). Kaggle per-core throughput differs from M1 extrapolation in both
-directions. Stop extrapolating; measure one partition then scale.
-
-### Kaggle operational gotchas (cost several failed runs)
-- `enable_internet: true` is IGNORED unless the account is phone-verified
-- **`kernel_sources` silently does not mount** — publish artifacts as a DATASET
-- OAuth token expires ~3h and the CLI does NOT auto-refresh; needs
-  `kaggle auth login --force`
-- Kaggle polars is 1.35.2 (older than local 1.44) — hence version-agnostic
-  CSV kwargs in io_tsv.py
-- Large kernel outputs download partially with no error; verify by size
+### ⚠️ OPEN FINDING: France abstains 2.5× more than US
+US (6.54%) tracks train (5.58%). France is 16.11%. **US is the control**, so
+this is signal not noise: the model is less confident where it has no training
+data. Under F₀.₅ abstaining on a matched entity scores 0.0 — same as guessing
+wrong — so abstention only pays on true singletons (~5.6%). Estimated cost
+**~1 point**. France reruns in 13 min ⇒ testable via a second submission.
 
 ---
 
-## 10. Open / next
+## 6. MY WRONG PREDICTIONS (6 so far — do not re-introduce)
 
-0. **4 wrong predictions so far**: singletons-as-lever (5.58% not ~35%),
-   mutual exclusivity (0.0000 gain), toy-pool recall (0.9709 vs real 0.9278),
-   numeric blocking (+0.004). Pattern: plausible mechanism, measurement
-   disagrees. Measure before building, every time.
-1. ~~realistic recall ceiling~~ → **0.9278** measured. Blocking 20k x 6.19M took **713s** — naive full-test projection ~10h, needs fixed-vs-variable cost split before deciding optimise-vs-escalate.
-2. `model.py` — LightGBM, group split on S1 entity, stratify singletons
-3. `decide.py` — 3a global threshold → 3b singleton gate → 3c exploit mutual exclusivity
-4. `run_pipeline.py` end-to-end, submit
-5. Reserved final hours: zip package + `Documentation_template.md`
-6. Deadline **<48h**, submissions **unlimited**
+| # | I predicted | Measurement said |
+|---|---|---|
+| 1 | Singletons a major lever (~35%) | **5.58%** — a guard, not the lever |
+| 2 | Mutual exclusivity buys precision | **0.0000 gain** — 1 conflict in 15,000 |
+| 3 | Recall 0.9709 | **0.9278** — toy 369k pool over-stated by 4pts |
+| 4 | Numeric blocking closes India gap | **+0.004** — redundant with address blocking |
+| 5 | "Address is the bridge" | True for US, **false for India** (22.6% non-Latin addrs) |
+| 6 | Timings (×4) | France 30→13min, US 2.5h→2.05h, India 4h→>3h |
+
+**Pattern: plausible mechanism, measurement disagrees.** Measure first, always.
+
+### Corrections to earlier claims
+- Chunk 2: predicted two id-list columns → actually **one** (`matched_entity_ids`)
+- Chunk 4: inferred no leaderboard → there **is** one (public + private split)
+- Claimed precision weighted 4:1 → PS says **2×** (conventional F_β reading)
+- Claimed ids zero-padded 5-digit → actually variable length (`S1-925783039`)
+
+### Bugs I introduced and fixed
+1. **Index-offset mismatch** — offset predictions but not truth ⇒ bogus 0.4690.
+   Pinned by `test_offset_predictions_against_unoffset_truth_scores_zero`.
+2. **scipy prunes explicit zeros** in sparse addition ⇒ candidate arrays
+   misaligned. Fixed with sorted int64-key gather + assertion.
+3. **Ran blocking single-threaded for hours** (`n_threads=0` is serial).
+4. `.gitignore` `artifacts/**` didn't match at depth ⇒ 4 MB model nearly committed.
+5. Poller treated **auth failure as job completion** ⇒ false "all finished".
+6. Renamed a polars kwarg for a local warning ⇒ **broke Kaggle** (older version).
+
+---
+
+## 7. INFRASTRUCTURE — what failed and why
+
+**Local M1 (8 cores, 8 GB) RESET under load.** Memory, not heat: two countries'
+TF-IDF matrices + both feature matrices + a `np.vstack` duplicate ≈ 6–7 GB.
+
+**AWS BLOCKED — account on the Free Plan.** Largest permitted instance
+`m7i-flex.large` (2 vCPU / 8 GiB) — *smaller than the laptop*. Requires the user
+to upgrade to a Paid Plan. Left in place for if that happens: S3 bucket
+`lassi-er-920876082653`, IAM role `LassiERInstanceRole`, instance profile.
+Best value if upgraded: **`c6a.16xlarge` 64 vCPU/128 GiB @ $1.496/h** (half the
+price of the Intel equivalent).
+
+**CHOSEN: Kaggle** — 4 vCPU, **31 GB RAM**, 12h sessions, free.
+
+### Kaggle gotchas (cost ~5 failed runs)
+- `enable_internet: true` **ignored** unless account is phone-verified
+- **`kernel_sources` silently does not mount** → publish artifacts as a DATASET
+- OAuth expires ~3h, CLI does **not** auto-refresh → `kaggle auth login --force`
+- Kaggle polars **1.35.2** (local 1.44) → version-agnostic kwargs required
+- Large outputs **download partially with no error** → verify by size, retry
+- macOS has no `timeout` command (it's `gtimeout`)
+
+### Kaggle assets
+| Kind | Name |
+|---|---|
+| Dataset (data) | `zeroxbhuvii/amazonml-er-data` — 7 files, verified byte-exact |
+| Dataset (model) | `zeroxbhuvii/lassi-er-artifacts` — model.txt + threshold.json |
+| Kernels | `lassi-er-{train,india,us,france}` |
+
+---
+
+## 8. WHAT REMAINS
+
+1. **India finishes** → download with size verification
+2. **Merge locally**: `python -m pipeline merge --output-dir <dir>`
+   (verifies every test entity appears exactly once)
+3. **Validate**: `python3 utils/validate_submission.py --matching … --candidate …
+   --test-dir dataset/test`
+4. **Upload `matching_results.tsv`** → first real leaderboard score
+5. **Then** the France threshold A/B (13 min rerun, ~1 point expected)
+6. Assemble `Lassi_submission.zip`: `output/` + `code/business_entity_resolution/`
+   + filled `Documentation_template.md`
+7. Update methodology doc with final numbers
+
+### Untested lever if time allows
+India recall 0.880 vs US 0.946. Only 5.6% of India pairs have no cross-script
+bridge, but 11.5% are missed ⇒ **~6% are ranking failures** (true match exists
+in-script but falls outside top-40), not signal failures. Higher `top_n` is the
+untested lever there — NOT another signal (numeric was measured and rejected).
+
+### Expected final score
+**~0.91.** Training gave 0.9099 on held-out entities. Not the 0.9313 quoted
+earlier — that was US-only and India is genuinely harder.
