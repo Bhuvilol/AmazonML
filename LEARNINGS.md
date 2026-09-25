@@ -289,8 +289,31 @@ India is 47% of the test set and has the worse recall. US addresses being
 0.5 costs no more than 0.1, so the aggressive setting bought nothing past the
 first step. **This was the single largest error of the project.**
 
-**H2 — top_n too low.** Blocking time is flat in top_n; only downstream scoring
-grows. Under measurement at 100.
+**H2 — top_n too low. CONFIRMED.** Note the interaction: at `max_df=0.01`
+blocking time is flat in `top_n`, but once pruning is relaxed it is NOT
+(597 s @40 vs 1412 s @100). More surviving n-grams means more to rank.
+
+### ★ FULL SWEEP — real target pools, both countries
+
+| config | US | India |
+|---|---|---|
+| top_n=40, max_df=.01 *(was deployed)* | 0.9464 | 0.8863 |
+| + exact-key | 0.9531 (+0.7) | 0.9093 (**+2.3**) |
+| top_n=100 + exact | 0.9659 | 0.9261 |
+| **top_n=100 + exact + max_df=0.5** | **0.9825** | **0.9486** |
+
+**Exact-key blocking helps India 3x more than US** (+2.3 vs +0.7) — Indian names
+carry more systematic variants that normalise to identical keys.
+
+These India figures **exclude transliteration** (the measurement process had
+already imported the module before it was added). With 42% of India's misses
+being cross-script and transliteration moving 34.9% of those from 0 to usable,
+India should land materially higher in the real run.
+
+**Deployed v2 config: top_n=40, max_df=0.5, exact-key on, transliteration on.**
+top_n=40 over 100 costs ~0.25 points of recall but halves the compute (9 sharded
+kernels instead of 18), which is the difference between fitting the deadline and
+not.
 
 **H2b — exact-key blocking. PARTIAL: +0.67 points, then a bug found.**
 First measurement gave only 0.9464 → 0.9531 because `max_group=100` *skipped*
