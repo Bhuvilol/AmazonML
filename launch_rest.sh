@@ -28,6 +28,13 @@ for K in "${PENDING[@]}"; do
     elif grep -q "Maximum batch CPU session count" <<<"$OUT"; then
       echo "$(date +%H:%M:%S)  waiting   $K (all 5 slots busy)"
       sleep $INTERVAL
+    elif grep -qi "Authentication required\|denied\|401\|403" <<<"$OUT"; then
+      # Auth expires roughly every 3h and the shards run ~4.5h, so this WILL be
+      # hit mid-run. It is transient, not fatal: the first version of this
+      # script treated it as a hard error and abandoned all four shards.
+      # Keep waiting -- a re-login from another terminal is picked up here.
+      echo "$(date +%H:%M:%S)  AUTH EXPIRED -- run: kaggle auth login --force  (retrying $K)"
+      sleep $INTERVAL
     else
       echo "$(date +%H:%M:%S)  ERROR     $K: $OUT"
       failed+=("$K")
