@@ -99,6 +99,19 @@ a conflict that did not exist because I recalled the config from a summary
 instead of reading `BlockingConfig`. **Name which axis each hyperparameter moves
 before trading them off, and read the config, don't remember it.**
 
+**H13 — a platform quota is a silent partial failure, not an error.** Kaggle
+caps concurrent batch CPU sessions at 5. `chain_v2.sh` pushed nine kernels in
+one burst; the five India shards took the slots and the four US/France pushes
+were rejected with "Maximum batch CPU session count of 5 reached". The loop
+piped each push through `head -1` and then printed "all shards launched"
+unconditionally, so the run exited 0 and looked complete. Caught only by
+querying each kernel's status by hand. This is **H6 (absence of error is not
+success) recurring in a new place** — the second time in this project that a
+fan-out step reported success it had not verified. **When a step fans out to N
+things, assert N successes; never let the loop's own exit code stand in for the
+work's.** Fixed by grepping each push for "successfully pushed", counting, and
+exiting non-zero with the deferred list.
+
 ---
 
 ## 0. WHERE WE STAND

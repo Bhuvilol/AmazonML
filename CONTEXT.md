@@ -158,7 +158,29 @@ One country partition at a time (lossless per Q3; bounds memory).
 
 ## 5. RESULTS SO FAR
 
-### Training (Kaggle, 71 min, 100k entities/country)
+### v2 Training — COMPLETE 2026-09-25 (`top_n=40`, `max_df=0.50`, + exact-key)
+```
+macro F0.5 = 0.9218   threshold 0.650   all-empty baseline 0.0579
+```
+Blocking recall ceiling: **US 0.9757, India 0.9254** (v1: 0.9462 / 0.8796).
+
+| country | positives | candidates | positive rate |
+|---|---|---|---|
+| India | 96,102 | 2,601,321 | 3.69% |
+| US | 101,279 | 2,735,997 | 3.70% |
+
+Exact-key blocking contributed 720,922 pairs (India S2) and 598,548 (US S2);
+678 India / 4,177 US sources hit an oversized key (>100) and were **truncated,
+not skipped** — the H5 fix.
+
+**Read on this:** +4.6 points of India recall ceiling and +3.0 US, for +1.2
+points of local macro F0.5 (0.9099 -> 0.9218). The recall gain converts to score
+at roughly 1:4, because recall was a ceiling, not the binding constraint at
+every entity. Extrapolating v1's local-to-leaderboard gap (-0.019) puts v2 near
+**0.903** — real progress, still far from 0.9859. **The remaining gap is not a
+blocking problem.** See section 8.
+
+### v1 Training (Kaggle, 71 min, 100k entities/country)
 ```
 macro F₀.₅ = 0.9099   threshold 0.575   all-empty baseline 0.0582
 ```

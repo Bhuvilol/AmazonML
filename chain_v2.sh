@@ -36,10 +36,29 @@ META
 $KG datasets version -p /tmp/v2ds -m "v2: max_df=0.5, exact-key, transliteration" --dir-mode zip 2>&1 | tail -2
 sleep 60
 
-echo; echo "launching 9 predict shards ..."
+# Kaggle caps concurrent batch CPU sessions at 5, so a nine-kernel burst cannot
+# all land. Push what fits, VERIFY each one, and report the rest honestly --
+# the first version of this loop piped push output to `head -1` and then printed
+# "all shards launched" unconditionally, so four rejected pushes looked like
+# success and were only caught by checking kernel status by hand.
+echo; echo "launching predict shards (Kaggle allows 5 concurrent) ..."
+LAUNCHED=(); DEFERRED=()
 for K in india-s0of5 india-s1of5 india-s2of5 india-s3of5 india-s4of5 \
          us-s0of3 us-s1of3 us-s2of3 france; do
-    $KG kernels push -p kaggle/kernels_v2/$K 2>&1 | head -1
+    OUT=$($KG kernels push -p kaggle/kernels_v2/$K 2>&1)
+    if grep -q "successfully pushed" <<<"$OUT"; then
+        echo "  LAUNCHED  $K"; LAUNCHED+=("$K")
+    else
+        echo "  deferred  $K: $(head -1 <<<"$OUT")"; DEFERRED+=("$K")
+    fi
     sleep 5
 done
-echo; echo "all shards launched at $(date '+%H:%M')"
+
+echo
+echo "launched ${#LAUNCHED[@]}/9 at $(date '+%H:%M')"
+if [ ${#DEFERRED[@]} -gt 0 ]; then
+    echo "NOT launched: ${DEFERRED[*]}"
+    echo "Run ./launch_rest.sh -- it waits for slots and retries."
+    exit 1
+fi
+echo "all 9 shards launched"
