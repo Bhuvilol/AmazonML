@@ -179,7 +179,7 @@ must be random or full-population. Do not trust that number.
 | `src/features.py` | ✅ 20 features, 0.19M pairs/sec |
 | `src/model.py` | ✅ LightGBM, entity-grouped split, calibration report |
 | `src/decide.py` | ✅ threshold + singleton gate + **exclusivity resolution** (unit-verified) |
-| `src/run_pipeline.py` | ❌ next |
+| `src/pipeline.py` | ✅ paths/threads env-configurable, `--country` partials, `merge` |
 
 All-empty baseline written and validator-PASS → submittable now, scores ≈0.056,
 and reveals the public-subset singleton rate for free (submissions are unlimited).
@@ -240,6 +240,85 @@ downstream feature/scoring time (~+6 min for 65M→100M). +1.18 recall for
   writes valid rows incl. `S1-x\t` empties.
 - Memory projection for full train run: **~3.3 GB peak** at 150k entities/country
   (8 GB available). RAM is not the constraint; wall-clock is.
+
+---
+
+## 9e. Infrastructure: what failed and why (session 2)
+
+**Local machine RESET under load.** Diagnosis: memory, not heat. The training run
+held India's TF-IDF matrix (4.13M docs), then US's (6.19M docs), the feature
+matrices for BOTH countries, plus a `np.vstack` duplicating them → ~6-7 GB on an
+8 GB box → swap thrash → watchdog reset. My "4.0 GB peak" projection summed
+naively and was wrong.
+
+**AWS is BLOCKED — account is on the Free Plan.** Largest permitted instance:
+
+| allowed | vCPU | RAM |
+|---|---|---|
+| m7i-flex.large | 2 | 8 GiB |
+| c7i-flex.large | 2 | 4 GiB |
+| t3/t4g/t8i micro+small | 2 | 1-2 GiB |
+
+**All worse than the M1.** Account `920876082653` ("adarsh"), created 2026-06-06.
+Fix requires the USER to upgrade to a Paid Plan in the Billing console.
+Created and left in place for when/if that happens: S3 bucket `lassi-er-<acct>`
+(private), IAM role `LassiERInstanceRole` (SSM + that bucket only),
+`LassiERInstanceProfile`. Cost nothing while idle.
+
+**Pricing measured (ap-south-1, if the plan is ever upgraded):**
+`c6a.16xlarge` 64 vCPU/128 GiB **$1.496/hr** — same $/vCPU as the 8xlarge and
+HALF the Intel `c6i.16xlarge` ($2.72). AMD EPYC is the value pick.
+
+**CHOSEN PATH: Kaggle Notebooks** — 4 vCPU but ~30 GB RAM, 12h sessions, free.
+Fewer cores (slower) but the memory failure mode disappears.
+
+---
+
+## 9f. ⚠️ BUG FOUND: index-offset mismatch (cost: a bogus 0.4690)
+
+```python
+all_cols.append(candidates.col + (entity_offset << 32))   # offset predictions
+all_truth.extend(truth)                                   # did NOT offset truth
+```
+
+Predictions and ground truth ended up in different index spaces, so every
+intersection for the SECOND country was empty → that whole country scored 0 →
+reported 0.4690 ≈ (0.93 + 0)/2. **The model was fine** (labels are built
+per-country and internally consistent); only threshold selection was corrupted.
+
+Fixed by offsetting both by a cumulative *target* offset. Pinned by
+`test_offset_predictions_against_unoffset_truth_scores_zero`. Stale artifacts
+(threshold 0.4690) quarantined to scratchpad, NOT committed.
+
+Also fixed: `.gitignore` had `artifacts/**` which did not match at depth —
+a 4.1 MB `model.txt` nearly got committed. Now `**/artifacts/`.
+
+---
+
+## 9g. ⚠️ BIGGEST REMAINING LEVER: India recall
+
+From `blocking_recall.json` (100k entities/country, top_n=40):
+
+| country | recall |
+|---|---|
+| US | **0.9462** |
+| **India** | **0.8796** |
+
+India is **6.7 points worse** and is the LARGEST test partition (809,986 of
+1,732,544 entities = 47%). Almost certainly the Devanagari/Tamil cross-script
+problem. Worth more than any further top_n increase. Untried ideas:
+transliteration, or an exact numeric-token inverted index as a third blocking
+signal (numerics survive script changes intact).
+
+---
+
+## 9h. Synthetic end-to-end test (new, in `tests/make_synthetic.py`)
+
+Validates the whole CLI chain in seconds: train → per-country predict → merge →
+official validator with `--check-ids`. Includes a country ("Zephyria") present
+ONLY in test, mirroring France, plus every named noise pattern and Devanagari.
+Result: **PASS**, 600/600 rows, and the unseen country ran at 89% matched.
+Use this before any long hosted run.
 
 ---
 
