@@ -118,10 +118,39 @@ just its size.**
 | 5 | "Address is the bridge for cross-script" | True for US (0% non-Latin addrs), **false for India (22.6%)** | Wrong mental model of the hardest partition |
 | 6 | Runtime estimates (x4) | France 30→13 min, US 2.5→2.05 h, India 4→3.7 h | Repeated mis-planning |
 | 7 | max_df trade is cheap | under measurement — suspected primary cause of the gap | Possibly the whole 0.06 |
+| 8 | France abstention is threshold-driven, worth ~0.01 | **Wrong.** Threshold 0.575→0.20 moves it only 16%→14.5%. It is a BLOCKING failure | Would have wasted a submission |
 
 **The pattern: a plausible mechanism, asserted confidently, contradicted by
 measurement.** Every single one was caught only by measuring. The process
 works; the instinct to trust the mechanism does not.
+
+---
+
+## 3b. ★ FRANCE THRESHOLD HYPOTHESIS: DEAD (prediction #8 wrong)
+
+I argued the France abstention (16.11% vs US 6.54%) was the threshold being too
+conservative on a country with no training data, worth ~0.01. Measured curve:
+
+| threshold | empty% |
+|---|---|
+| 0.200 | **14.52%** |
+| 0.300 | 15.11% |
+| 0.400 | 15.61% |
+| 0.550 | 16.05% |
+
+Dropping the threshold from 0.575 to **0.20** moves abstention only 16% → 14.5%.
+**Abstention is not threshold-driven.** Those ~41,000 entities have candidates
+scoring below even 0.20, so blocking surfaced the WRONG candidates — the true
+matches are absent from the candidate set entirely.
+
+France blocking produced only 256 rows with zero candidates, yet 41,794 predict
+empty. So candidates exist; they are simply not the right ones.
+
+**Same root cause as everything else: blocking recall.**
+
+Side observation: exclusivity drops **12.2%** of claims at threshold 0.2 for
+France (vs 0.01% in training). Many contested targets is itself a symptom of
+poor candidate quality.
 
 ---
 
