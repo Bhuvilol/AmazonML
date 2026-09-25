@@ -43,6 +43,45 @@ nothing. Every hour on model architecture is an hour not spent on recall.
 
 ---
 
+## 1b. ★ DEFINITIVE: precision is fine, RECALL is the entire problem
+
+Measured on 15,000 held-out training entities per country, using the deployed
+model and threshold:
+
+| | US | India |
+|---|---|---|
+| macro F₀.₅ | 0.9373 | 0.8829 |
+| **micro precision** | **0.9812** (869 FPs) | **0.9515** (2,136 FPs) |
+| **micro recall** | **0.8759** (6,423 missed) | **0.8044** (10,180 missed) |
+| entities perfectly reconstructed | 64.8% | 49.9% |
+| **macro F₀.₅ if precision were PERFECT** | **0.9521** | **0.9150** |
+
+**The last row is the decisive number.** Removing every single false positive
+still leaves us at 0.952 / 0.915 — below the top-500 cutoff of 0.95 overall.
+**No amount of precision work can reach the target.** Recall is the only axis.
+
+### A second loss, previously unisolated
+US blocking recall is 0.9462 but end-to-end recall is 0.8759. So:
+- ~5.4% of pairs are lost at **blocking** (never proposed)
+- ~7.0% more are lost at the **decision stage** (proposed but scored below 0.575)
+
+The threshold sweep says 0.575 is optimal *for this candidate set*, so the
+second loss is not a threshold error — the model cannot rank well what blocking
+barely surfaced. Both losses trace back to candidate quality.
+
+### What this kills
+- **Changing the model is pointless.** AP 0.9878, precision 0.98. A transformer,
+  an ensemble, better features — all operate on pairs that must already exist.
+- **Per-entity expected-F selection**: at best worth the precision headroom,
+  i.e. ≤0.015 on US. Not the answer.
+- **France threshold tuning**: still worth ~0.01, but not a path to 0.95.
+
+### What remains
+Raise blocking recall from ~0.93 toward ~0.98. Nothing else can move the score
+enough. Ranked hypotheses in section 6.
+
+---
+
 ## 2. MY LIKELY ROOT-CAUSE ERROR: the max_df trade
 
 `max_df=0.01` was chosen by measuring on a **369k sampled target pool**:
