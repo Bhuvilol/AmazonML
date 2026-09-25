@@ -90,13 +90,55 @@ The upper bound on recall, and the stage we spent most effort measuring.
   Top-k is retained per source row using a sparse top-n multiply, so the full
   product is never materialised.
 
-- **Candidate pairs generated:** ~37.8 per Source-1 entity; see `output/candidate_pairs.tsv`.
-  Reduction ratio **0.9999939** against the full pair space.
+-  **Exact-key blocking, added alongside the cosine top-k.** The ranked top-k
+  has a structural failure: a common name has hundreds of key-mates, so a true
+  match with a *byte-identical* normalised key can still fall outside the top 40
+  and be lost. We found `Office of Housing` / `Office Of Housing` — Jaccard 1.00
+  — being missed for exactly this reason. Exact-key blocking hash-joins on the
+  normalised key and emits every colliding pair as a candidate, turning a
+  ranking into a **guarantee**. Oversized key groups are **truncated, not
+  skipped**: an early version skipped groups above 100, which silently discarded
+  precisely the common-name cases the mechanism exists to catch.
 
-- **How we ensured true matches were not lost:**
+  Contribution on the training partitions: 720,922 extra India pairs and
+  598,548 US pairs; 678 India / 4,177 US sources hit an oversized key.
 
-  The candidate set is the **union** of name-based and address-based top-k, not
-  the intersection. This is the single most important choice in the pipeline.
+- **Recall ceiling, measured against the full target pool:**
+
+  | country | target pool | recall ceiling | candidates/entity | reduction ratio |
+  |---|---|---|---|---|
+  | US | 6,186,873 | **0.9757** | 91.2 | 0.99998526 |
+  | India | 4,133,346 | **0.9254** | 86.7 | 0.99997902 |
+
+  Every figure is against the **full** pool, not a sample. This distinction cost
+  us real score: an early measurement against a 369k sampled pool reported 0.971
+  and was over-optimistic by ~4 points, because 10× fewer distractors compete
+  for the same top-k slots. Any blocking parameter tuned on a sample must be
+  re-validated at full scale.
+
+- **`max_df` — a pruning setting we initially got wrong.** `max_df` drops
+  n-grams appearing in more than the given fraction of documents. We first set
+  `0.01`, justified as "a 21× speedup for 1.7 points of recall" — a figure
+  measured on the 369k sample. Re-measured at full scale the trade was **2.6
+  points**, not 1.7, and at `0.01` roughly 70% of each name's n-grams were being
+  discarded. Relaxing to `max_df=0.50` recovered those points:
+
+  | config | US ceiling | India ceiling | time |
+  |---|---|---|---|
+  | `top_n=40`, `max_df=0.01` | 0.9464 | 0.8863 | 316 s |
+  | + exact-key | 0.9531 | 0.9093 | 376 s |
+  | `top_n=100` + exact + `max_df=0.50` | 0.9825 | 0.9486 | 1412 s |
+  | **`top_n=40` + exact + `max_df=0.50`** (shipped) | **0.9757** | **0.9254** | ~600 s |
+
+  **`top_n` was deliberately kept at 40.** Raising it to 100 buys ~0.7 further
+  points of ceiling but roughly doubles both compute and the candidate set. The
+  two knobs act on different axes — `top_n` controls candidate *volume*,
+  `max_df` controls candidate *quality* — and since the challenge ranks smaller
+  candidate sets higher, spending on quality rather than volume is the correct
+  trade.
+
+- **How we ensured true matches were not lost — the union, not the
+  intersection.** This is the single most important choice in the pipeline.
   Measured over all 7,638,365 training pairs:
 
   | Source-2/3 name | address | share of true pairs |
@@ -110,17 +152,6 @@ The upper bound on recall, and the stage we spent most effort measuring.
   characters — and only the address proposes the pair. Name-only blocking
   discards them permanently.
 
-  We measured the recall ceiling against the **full** target pool
-  (6,186,873 records), not a sampled one. An early measurement against a 369k
-  sampled pool reported 0.971 and was **over-optimistic by ~4 points**, because
-  10× fewer distractors compete for the same top-k slots. The honest figure is
-  **0.9278**.
-
-  `max_df=0.01` prunes very common n-grams. These have posting lists in the
-  hundreds of thousands but near-zero IDF, so they dominate runtime while
-  contributing almost nothing: removing them is a **21× speedup for 1.7 points
-  of recall**. Pruning further (`max_df=0.003`) collapses recall to 0.84, so the
-  setting sits just before that cliff.
 
 ---
 
