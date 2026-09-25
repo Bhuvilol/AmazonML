@@ -274,6 +274,70 @@ price of the Intel equivalent).
 
 ---
 
+## 7b. LEVER SWEEP — 2026-09-26, all measured, none large
+
+Ran while the v2 shards were executing. Every candidate lever for closing
+0.903 -> 0.9859 was measured rather than argued. **None of them is large.**
+
+| lever | measured gain | cost | verdict |
+|---|---|---|---|
+| corruption inversion (state/ordinal/pad/null) | **+0.0024** recall@40 | 6.5 h re-run | not worth it |
+| decision rule (best feasible) | **+0.0042** | free, post-processing | **take it** |
+| French normalisation (`R.`->`Rue`, region<->dept) | **+0.0070** top-1 addr cosine | 6.5 h re-run | not worth it alone |
+| global threshold | **0** | free | exhausted |
+| better model | **~0** | — | AP already 0.9821 |
+
+### Corruption is mechanical but inverting it barely helps
+14,754 true pairs sampled. The noise IS rule-based and enumerable: state
+spelled-out<->abbreviated **27.34%**, NULL/None literal 7.65%, domain form 5.47%,
+zero-padding 5.35%, homoglyph digit (`5anderson`, `Fa1cone`) 2.89%, scrambled
+ordinal (`80th`->`80nd`) 1.15%. Inverting all of them raises mean address cosine
+**+0.061** — but only **12 net pairs of 8,887** cross `min_sim_addr=0.30`,
+because 94.88% were already above it, and recall@40 moves just **+0.0024**.
+**The corruptions reduce margin, not reachability.**
+
+### The decision layer: real headroom, but hard to capture
+Model average_precision is **0.9821** and the threshold curve is a flat plateau
+(0.55–0.725 all within 0.002), so the pairwise ranking is near-saturated and no
+global cut does better. Oracle analysis on 3,000 US entities:
+
+| rule | macro F0.5 | captures |
+|---|---|---|
+| best global threshold | 0.9762 | — |
+| oracle best-prefix | 0.9982 | headroom +0.0220 |
+| oracle best-subset | 0.9991 | +0.0009 beyond prefix |
+| A — expected-F0.5 under independence | 0.9638 | **-57% (LOSES)** |
+| B — threshold + singleton gate | 0.9796 | 15% |
+| C — relative cut `p_k >= r*p_1` | **0.9805** | **19%** |
+
+**Prefix-oracle ~ subset-oracle** (gap 0.0009): the within-entity ranking is
+right, only the cut point is wrong. But feasible rules capture just 15–19% of
+that. **Rule A — the per-entity expected-F optimiser I was most confident in —
+actively loses**, because LightGBM probabilities are not calibrated and
+independence is a poor model of the score distribution. Brainstorm step 3c
+failed its exit criterion and is deleted, exactly as specified.
+
+### France: the blocking hypothesis is dead
+France abstains at 16.11% vs 6.54% US, and the estimate "France ~ 0.78" made it
+look like the biggest single lever (~0.02 overall). Measured directly on 4,000
+France test entities vs 120k targets:
+
+```
+top-1 address cosine: mean 0.8948  median 0.9088  >=0.5 99.80%  >=0.7 97.08%  zero 0.00%
+```
+
+**France blocking is excellent.** 99.8% of entities already have a strong top-1
+candidate; none are at zero. French-aware normalisation adds only +0.0070.
+The candidates exist — the model scores them low. Cause is under test.
+
+⚠️ **"France ~ 0.78" is an inference, not a measurement.** It comes from
+`0.85 x 0.91 + 0.15 x France = 0.8906`, which assumes US+India score 0.91 on
+test because that was the local validation figure. If US+India actually score
+0.88 on test, France is ~0.95 and there is no France problem. **Do not treat
+0.78 as data.**
+
+---
+
 ## 8. WHAT REMAINS
 
 1. **India finishes** → download with size verification

@@ -112,6 +112,28 @@ things, assert N successes; never let the loop's own exit code stand in for the
 work's.** Fixed by grepping each push for "successfully pushed", counting, and
 exiting non-zero with the deferred list.
 
+**H14 — a candidate pool without guaranteed positives measures nothing.** To
+compare how the model scores France vs US I sampled the first 3,000 Source-1
+entities against the first 30,000 Source-2/3 records per country. Those are
+unrelated slices of 1.87M-row files, so virtually no true match was in the pool
+and every score was near zero — US "abstained" on 95.43% against 6.54% in the
+real run. The headroom test one hour earlier had explicitly seeded true targets
+into its pool; I did not carry that over. **Any sampled evaluation pool must
+contain the positives for the queries it is evaluated against, or it measures
+the distractor distribution and nothing else.** Symptom to watch for: an
+absolute number wildly off a known production figure — that is the signal the
+harness is wrong, not the model.
+
+**H15 — an inference chain is not a measurement, and should be labelled.**
+"France ~ 0.78" drove hours of prioritisation as though it were data. It is
+arithmetic: `0.85 x 0.91 + 0.15 x France = 0.8906`, resting on the assumption
+that US+India score their *local validation* figure of 0.91 on the *test* set.
+If they score 0.88, France is ~0.95 and the problem is imaginary. Direct
+measurement then showed France blocking is excellent (99.8% of entities have a
+top-1 address cosine above 0.5, none at zero), undercutting the premise.
+**Mark derived quantities as derived wherever they are recorded, and state the
+assumption they rest on.**
+
 ---
 
 ## 0. WHERE WE STAND
