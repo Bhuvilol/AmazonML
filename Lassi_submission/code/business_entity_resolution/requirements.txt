@@ -233,3 +233,4 @@ zipp==4.1.0
 zope-event==6.2
 zope-interface==8.6
 zstandard==0.25.0
+unidecode
