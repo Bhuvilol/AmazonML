@@ -157,7 +157,7 @@ The upper bound on recall, and the stage we spent most effort measuring.
 
 ## 4. Matching Model
 
-**Features used** (20 total, all computed pairwise):
+**Features used** (32 total: 20 pairwise-absolute + 12 competition):
 
 - **Name features:** token-set ratio, token-sort ratio, Levenshtein ratio,
   Jaro-Winkler, TF-IDF character n-gram cosine
@@ -174,6 +174,59 @@ The upper bound on recall, and the stage we spent most effort measuring.
 
 Order-insensitive scorers are emphasised throughout, matching the transposition
 noise the problem statement describes.
+
+### Competition features — the single largest modelling gain we found
+
+The 20 features above share a blind spot: every one describes a pair **in
+isolation**. None of them can express whether a candidate is *the best of forty*
+or *the thirty-seventh of forty*. A 0.7 name cosine means something completely
+different as the strongest option in a weak field than as an also-ran behind
+several near-identical rivals, and no absolute feature can tell those apart.
+
+We added 12 features describing each pair **relative to the others competing for
+the same Source-1 entity**, all derived from the candidate arrays blocking has
+already produced, at no extra computational cost:
+
+| group | features |
+|---|---|
+| rank within the entity's list | `rank_name`, `rank_addr`, `rank_comb` |
+| gap to the entity's best | `marg_name`, `marg_addr`, `marg_comb` |
+| ratio to the entity's best | `rel_name`, `rel_addr` |
+| field shape | `n_cands`, `share_comb` |
+| reverse direction | `tgt_degree`, `tgt_margin` |
+
+Measured A/B on 6,000 US training entities, 2,400 held out, identical split and
+hyperparameters:
+
+| feature set | macro F_0.5 | best threshold |
+|---|---|---|
+| 20 pairwise-absolute | 0.9800 | 0.775 |
+| **+ 12 competition** | **0.9894** | 0.825 |
+
+**+0.0094** — more than double any other lever we tested, including candidate
+generation changes costing hours of compute. The importances explain why:
+
+| feature | LightGBM gain |
+|---|---|
+| **`share_comb`** | **626,234** |
+| `rank_comb` | 51,865 |
+| `addr_cos` | 44,291 |
+| `addr_token_set` | 22,437 |
+
+`share_comb` — a pair's share of its entity's total similarity mass — carries
+roughly fourteen times the gain of the strongest string-similarity feature and
+dominates the model outright.
+
+A second round of 8 further competition features (second-best level, top-1
+dominance, a mutual-best flag, log target degree, mean field strength) scored
+**+0.0092** — indistinguishable from the 12-feature set — so they were dropped
+rather than carried. Complexity that does not pay rent is removed.
+
+**Implementation note.** These features need an entity's *entire* candidate
+list, while scoring is chunked at 2M pairs to bound memory. Computing them per
+chunk would cut entities across chunk boundaries and silently corrupt every rank
+and share, producing a plausible-looking model that is quietly wrong. They are
+therefore computed once over the whole partition, before chunking.
 
 **Model type:** LightGBM (gradient-boosted trees), binary objective. Chosen
 because the inputs are ~20 dense bounded tabular scores — precisely where GBDTs

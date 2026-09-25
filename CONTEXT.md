@@ -338,6 +338,35 @@ test because that was the local validation figure. If US+India actually score
 
 ---
 
+## 7c. COMPETITION FEATURES — the one large win (+0.0094)
+
+Added 2026-09-26. All 20 original features are pairwise-**absolute**; none could
+express whether a candidate was the best of forty or the 37th of forty. Twelve
+relative features fixed that, from arrays blocking already produced:
+
+```
+baseline 20 features   macro F0.5 0.9800  (thr 0.775)
++ 12 competition       macro F0.5 0.9894  (thr 0.825)     DELTA +0.0094
+```
+
+Importances: `share_comb` **626,234** | `rank_comb` 51,865 | `addr_cos` 44,291 |
+`addr_token_set` 22,437 (the previous top feature). The strongest signal in the
+model was one we had never computed.
+
+A second round of 8 more (second-best, top-1 dominance, mutual-best, log degree,
+mean field) gave +0.0092 — no better — and was dropped.
+
+**Landed in `8ab7108`**, verified end-to-end in a clean venv (synthetic train ->
+3-country predict -> merge -> validator PASS with `--check-ids`, 28 tests pass).
+**Not in the v2 run**, which was already executing. Goes out with v3.
+
+⚠️ Chunking hazard, already handled: these need an entity's whole candidate
+list, but scoring chunks at 2M pairs. Computed once before chunking — a
+per-chunk computation would cut entities across boundaries and silently corrupt
+every rank and share.
+
+---
+
 ## 8. WHAT REMAINS
 
 1. **India finishes** → download with size verification

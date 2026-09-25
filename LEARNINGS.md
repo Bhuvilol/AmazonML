@@ -134,6 +134,44 @@ top-1 address cosine above 0.5, none at zero), undercutting the premise.
 **Mark derived quantities as derived wherever they are recorded, and state the
 assumption they rest on.**
 
+**H16 — if the decision depends on context, the features must carry the
+context.** Twenty features, every one describing a pair in isolation. None could
+express whether a candidate was the best of forty or the thirty-seventh of
+forty, though that is exactly what determines whether it is a match. Adding 12
+relative features (rank within the entity's list, margin and ratio to its best,
+share of its total similarity mass, reverse-direction target degree) scored
+**+0.0094 macro F0.5** — more than double any other lever tested, at zero extra
+compute, because everything needed was already sitting in the CandidateSet
+arrays blocking had produced. `share_comb` alone carried a LightGBM gain of
+626,234 against 44,291 for `addr_cos`: **the single most informative feature in
+the model was one we had never computed.**
+
+Two further lessons inside this one:
+
+* **It was the right answer to a problem I had attacked from the wrong end.**
+  Oracle analysis showed the per-entity cut point was wrong and worth +0.022,
+  so I tried to fix the cut — hand-tuned rules captured 19%, a learned
+  cardinality selector actively lost. Both failed because the information needed
+  was not in the score distribution's *shape*. The fix was to give the model the
+  competitive context so its scores were calibrated per entity in the first
+  place. **When post-processing cannot recover a gap, suspect that the model is
+  missing an input, not that the post-processor needs to be cleverer.**
+* **Check what the feature list cannot express, not just what it contains.** The
+  20 features were individually well chosen and the gap was structural: an
+  entire *class* of signal was absent. Reviewing a feature list for quality
+  would never have found it; asking "what question can this list not answer?"
+  does.
+
+**H17 — a glob that matches your old output will silently eat it.** Shards write
+`matching_results_India_s0of5.tsv` and `merge_partials` globs
+`matching_results_*.tsv`. The v1 partials (`matching_results_India.tsv` and
+friends) were sitting in that same directory, so merging v2 in place would have
+swept both generations into one file — duplicated and half-stale entities, in a
+result that still passes a row count and still passes the official validator.
+Fixed by writing v2 to a clean `output_v2/`. **When a merge step discovers its
+inputs by pattern, give each run its own directory; do not rely on remembering
+to clean the last one.**
+
 ---
 
 ## 0. WHERE WE STAND
