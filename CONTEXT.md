@@ -360,6 +360,52 @@ not signal failures. Higher top_n is the untested lever there, not new signals.
 
 ---
 
+## 9j. TEST-RUN RESULTS (Kaggle, threshold 0.575 everywhere)
+
+| stage | entities | candidates | runtime | empty% | mean matches |
+|---|---|---|---|---|---|
+| train | 100k/country | — | 71 min | — | — |
+| France | 259,452 | 19,482,447 (75.1/ent) | 13 min | **16.11%** | 2.90 |
+| US | 663,106 | 50,739,173 (76.5/ent) | 123 min | **6.54%** | 3.33 |
+| India | 809,986 | — | running | — | — |
+| *(train actual)* | | | | *5.58%* | *3.67* |
+
+Training result: **macro F_0.5 = 0.9099**, threshold 0.575, all-empty baseline 0.0582.
+Threshold curve flat 0.475-0.65 (0.9077-0.9099) ⇒ robust, not overfit.
+
+### ⚠️ FRANCE ABSTAINS 2.5x MORE THAN US — likely ~1 point of score
+
+US empty rate (6.54%) tracks the training singleton rate (5.58%) almost exactly.
+France abstains at **16.11%**. With US as a control this is not noise: the model
+is genuinely less confident on France, which has zero training data, so the
+global 0.575 threshold is too conservative there.
+
+Under F_0.5, abstaining on an entity that DOES have matches scores 0.0 —
+identical to predicting entirely wrong ids. There is no safety in abstention;
+it only pays on genuine singletons (~5.6% base rate). So ~10% of French
+entities are likely scoring 0 unnecessarily. France is 15% of test ⇒ order of
+1 point of final score.
+
+**Planned experiment (submissions are unlimited):** bank submission A at 0.575,
+re-run France alone at a lower threshold (13 min), submit as B, compare
+leaderboard scores. Converts a blind tuning choice into a measurement.
+
+### Timing estimates: wrong FOUR times, always too optimistic
+Predicted France 30 min (actual 13), US 2.5h (actual 2.05h), India 4h (running
+past 2.5h). Kaggle per-core throughput differs from M1 extrapolation in both
+directions. Stop extrapolating; measure one partition then scale.
+
+### Kaggle operational gotchas (cost several failed runs)
+- `enable_internet: true` is IGNORED unless the account is phone-verified
+- **`kernel_sources` silently does not mount** — publish artifacts as a DATASET
+- OAuth token expires ~3h and the CLI does NOT auto-refresh; needs
+  `kaggle auth login --force`
+- Kaggle polars is 1.35.2 (older than local 1.44) — hence version-agnostic
+  CSV kwargs in io_tsv.py
+- Large kernel outputs download partially with no error; verify by size
+
+---
+
 ## 10. Open / next
 
 0. **4 wrong predictions so far**: singletons-as-lever (5.58% not ~35%),
