@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -32,13 +33,36 @@ import decide as DEC
 import model as M
 from features import RecordArrays, compute_pair_features
 from io_tsv import _READ_OPTS, read_entity_ids
+from submit import SEP as SEP_TAB
 from submit import CANDIDATE_HEADER, MATCHING_HEADER, StreamingIdListWriter
 
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-DATA_ROOT = REPO_ROOT / "student_resource" / "dataset"
-ARTIFACTS = Path(__file__).resolve().parents[1] / "artifacts"
+
+# Paths are environment-overridable so the same code runs unchanged locally and
+# on a hosted notebook (Kaggle mounts read-only inputs under /kaggle/input and
+# only /kaggle/working is writable). Hard-coded paths would have forced a fork
+# of the pipeline, which the graded reproducibility requirement disallows.
+DATA_ROOT = Path(
+    os.environ.get("LASSI_DATA_ROOT", REPO_ROOT / "student_resource" / "dataset")
+)
+ARTIFACTS = Path(
+    os.environ.get("LASSI_ARTIFACTS", Path(__file__).resolve().parents[1] / "artifacts")
+)
+OUTPUT_DIR = Path(
+    os.environ.get("LASSI_OUTPUT", REPO_ROOT / "Lassi_submission" / "output")
+)
+
+# Worker count. sparse_dot_topn treats 0/None as SERIAL, so -1 (all cores) is
+# the correct default. On a small hosted box leaving one core free avoids
+# starving the OS, which is what caused a local machine reset under full load.
+def default_threads() -> int:
+    override = os.environ.get("LASSI_THREADS")
+    if override:
+        return int(override)
+    cores = os.cpu_count() or 1
+    return -1 if cores > 4 else max(1, cores - 1)
 
 
 @dataclass
@@ -59,8 +83,9 @@ class BlockingConfig:
     # pruning for ~1.7 points of recall. 0.003 collapses recall to 0.84.
     max_df: float = 0.01
     ngram_range: tuple[int, int] = (3, 3)
-    # MUST be -1. sparse_dot_topn treats 0/None as serial (`n_threads or 1`).
-    n_threads: int = -1
+    # MUST NOT be 0/None: sparse_dot_topn treats those as serial
+    # (`n_threads or 1`), which silently costs ~2.7x.
+    n_threads: int = field(default_factory=default_threads)
 
 
 def load_partition(split: str, source: int, country: str | None = None) -> pl.DataFrame:
@@ -157,6 +182,16 @@ def truth_for_partition(
     return truth
 
 
+def entity_ids_for_country(split: str, country: str) -> list[str]:
+    """Source-1 entity ids belonging to one country partition."""
+    path = DATA_ROOT / split / f"{split}_source1.tsv"
+    return (
+        pl.scan_csv(path, **_READ_OPTS)
+        .filter(pl.col("country") == country)
+        .select("entity_id").collect()["entity_id"].to_list()
+    )
+
+
 def run_predict(
     split: str,
     trained: M.TrainedModel,
@@ -165,6 +200,8 @@ def run_predict(
     output_dir: Path,
     singleton_gate: float | None = None,
     enforce_exclusivity: bool = True,
+    countries: list[str] | None = None,
+    suffix: str = "",
 ) -> None:
     """Generate both submission files for a split.
 
@@ -174,18 +211,27 @@ def run_predict(
     write would destroy a multi-hour run. Streaming is safe because the official
     validator compares required/seen as sets and never checks row order.
     """
-    required = read_entity_ids(DATA_ROOT / split / f"{split}_source1.tsv")
+    targets_countries = countries or discover_countries(split)
+    partial = countries is not None
+
+    if partial:
+        # A partial run is complete with respect to its own countries only.
+        required = [e for c in targets_countries for e in entity_ids_for_country(split, c)]
+        logger.info("PARTIAL run for %s: %d entities", targets_countries, len(required))
+    else:
+        required = read_entity_ids(DATA_ROOT / split / f"{split}_source1.tsv")
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     matching = StreamingIdListWriter(
-        output_dir / "matching_results.tsv", MATCHING_HEADER, required
+        output_dir / f"matching_results{suffix}.tsv", MATCHING_HEADER, required
     )
     candidates_file = StreamingIdListWriter(
-        output_dir / "candidate_pairs.tsv", CANDIDATE_HEADER, required
+        output_dir / f"candidate_pairs{suffix}.tsv", CANDIDATE_HEADER, required
     )
 
     with matching, candidates_file:
-        for country in discover_countries(split):
+        for country in targets_countries:
             started = time.time()
             source1 = load_partition(split, 1, country)
             targets = pl.concat([load_partition(split, n, country) for n in (2, 3)])
@@ -223,9 +269,59 @@ def run_predict(
             del source1, targets, candidates, probabilities, selected, s1_ids, tgt_ids
 
 
+def merge_partials(split: str, output_dir: Path) -> None:
+    """Concatenate per-country partial outputs into the final submission files.
+
+    Verifies that the union of partials covers every Source-1 test entity
+    exactly once before writing, so a missing or duplicated country partition
+    fails here rather than at submission.
+    """
+    required = read_entity_ids(DATA_ROOT / split / f"{split}_source1.tsv")
+
+    for stem, header in (("matching_results", MATCHING_HEADER),
+                         ("candidate_pairs", CANDIDATE_HEADER)):
+        partials = sorted(output_dir.glob(f"{stem}_*.tsv"))
+        if not partials:
+            raise SystemExit(f"No partial files matching {stem}_*.tsv in {output_dir}")
+        logger.info("merging %d partial(s) into %s.tsv: %s",
+                    len(partials), stem, [p.name for p in partials])
+
+        seen: set[str] = set()
+        destination = output_dir / f"{stem}.tsv"
+        with destination.open("w", encoding="utf-8", newline="") as out:
+            out.write(SEP_TAB.join(header) + "\n")
+            for part in partials:
+                with part.open(encoding="utf-8") as handle:
+                    handle.readline()   # skip the partial's header
+                    for line in handle:
+                        entity_id = line.split(SEP_TAB, 1)[0]
+                        if entity_id in seen:
+                            raise SystemExit(
+                                f"{part.name}: {entity_id} already written by an "
+                                f"earlier partial -- overlapping country partitions."
+                            )
+                        seen.add(entity_id)
+                        out.write(line)
+
+        missing = set(required) - seen
+        if missing:
+            raise SystemExit(
+                f"{stem}.tsv is incomplete: {len(missing)} entities missing "
+                f"(e.g. {sorted(missing)[:5]}). Run the remaining country partitions."
+            )
+        logger.info("wrote %s (%d rows)", destination, len(seen))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["train", "predict"])
+    parser.add_argument("command", choices=["train", "predict", "merge"])
+    parser.add_argument(
+        "--country", action="append", default=None,
+        help="Restrict to one country partition (repeatable). Produces partial "
+             "output files suffixed with the country name, so a long run can be "
+             "split across sessions and merged afterwards. Countries are "
+             "independent: true matches never cross them.",
+    )
     parser.add_argument("--split", default="test")
     parser.add_argument("--model", default=str(ARTIFACTS / "model.txt"))
     parser.add_argument(
@@ -235,7 +331,7 @@ def main() -> int:
     )
     parser.add_argument("--singleton-gate", type=float, default=None)
     parser.add_argument("--no-exclusivity", action="store_true")
-    parser.add_argument("--output-dir", default=str(REPO_ROOT / "Lassi_submission" / "output"))
+    parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
     parser.add_argument("--sample-entities", type=int, default=150_000)
     args = parser.parse_args()
 
@@ -267,10 +363,16 @@ def main() -> int:
 
         booster = lgb.Booster(model_file=args.model)
         trained = M.TrainedModel(booster=booster, best_iteration=booster.num_trees())
+        suffix = f"_{'_'.join(args.country)}" if args.country else ""
         run_predict(
             args.split, trained, threshold, BlockingConfig(),
             Path(args.output_dir), args.singleton_gate, not args.no_exclusivity,
+            countries=args.country, suffix=suffix,
         )
+        return 0
+
+    if args.command == "merge":
+        merge_partials(args.split, Path(args.output_dir))
         return 0
 
     raise SystemExit("train is driven by train_model.py; see README")

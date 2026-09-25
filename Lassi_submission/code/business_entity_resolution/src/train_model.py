@@ -101,7 +101,7 @@ def build_training_partition(country: str, n_entities: int, seed: int, config: B
         left, right, candidates.row, candidates.col,
         candidates.name_cos, candidates.addr_cos,
     )
-    return features, labels, candidates, truth, source1.height, recall
+    return features, labels, candidates, truth, source1.height, targets.height, recall
 
 
 def main() -> int:
@@ -123,20 +123,25 @@ def main() -> int:
     all_features, all_labels, all_rows, all_cols, all_truth = [], [], [], [], []
     recalls: dict[str, float] = {}
     entity_offset = 0
+    target_offset = 0
     for country in discover_countries("train"):
-        features, labels, candidates, truth, n_entities, recall = build_training_partition(
-            country, args.sample_entities, args.seed, config
+        features, labels, candidates, truth, n_entities, n_targets, recall = (
+            build_training_partition(country, args.sample_entities, args.seed, config)
         )
         all_features.append(features)
         all_labels.append(labels)
         # Offset entity indices so every partition shares one global numbering.
         all_rows.append(candidates.row.astype(np.int64) + entity_offset)
-        # Target indices are partition-local; offset them too so they stay
-        # unique across countries when exclusivity is resolved globally.
-        all_cols.append(candidates.col.astype(np.int64) + (entity_offset << 32))
-        all_truth.extend(truth)
+        # Target indices are partition-local. They must be made globally unique
+        # so exclusivity resolution never merges two different countries'
+        # records that happen to share a local index -- and CRITICALLY the same
+        # offset must be applied to the ground truth, or predictions and truth
+        # live in different index spaces and every intersection is empty.
+        all_cols.append(candidates.col.astype(np.int64) + target_offset)
+        all_truth.extend({c + target_offset for c in entity_truth} for entity_truth in truth)
         recalls[country] = recall
         entity_offset += n_entities
+        target_offset += n_targets
 
     features = np.vstack(all_features); del all_features
     labels = np.concatenate(all_labels).astype(np.float64)

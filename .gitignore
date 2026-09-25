@@ -23,6 +23,8 @@ student_resource/output/**
 Lassi_submission/output/**
 
 # ---- Model artefacts / caches: large binaries, regenerable ----
+# Leading '**/' so this matches at any depth, not just the repo root.
+**/artifacts/
 artifacts/**
 *.pkl
 *.joblib

@@ -1,0 +1,120 @@
+# ==========================================================================
+# ML Challenge 2026 - Business Entity Resolution : Kaggle runner
+#
+# Paste this into ONE Kaggle notebook cell. Change STAGE between runs.
+#
+# Requires, in notebook Settings:
+#   * Internet: ON        (pip install + git clone)
+#   * Accelerator: None   (this is CPU work; a GPU session gives FEWER vCPUs)
+#   * The dataset attached (see KAGGLE_SETUP.md)
+#
+# Why split by stage: at ~4 vCPU the full test pass runs ~8h against Kaggle's
+# 12h ceiling. Countries are independent partitions (true matches never cross
+# them, verified on 693k training pairs), so each runs separately and a failure
+# costs one partition instead of the whole job.
+# ==========================================================================
+
+STAGE = "train"          # "train" | "India" | "US" | "France" | "merge"
+SAMPLE_ENTITIES = 100_000
+REPO = "https://github.com/Bhuvilol/AmazonML.git"
+
+# --------------------------------------------------------------------------
+import os, subprocess, sys, time, glob, shutil, textwrap
+from pathlib import Path
+
+t_start = time.time()
+
+def sh(cmd, check=True):
+    print(f"$ {cmd}", flush=True)
+    return subprocess.run(cmd, shell=True, check=check)
+
+# ---- 1. Report the ACTUAL machine. Never assume Kaggle's spec. -----------
+print("=" * 62)
+sh("nproc; free -g | head -2; df -h /kaggle/working | tail -1", check=False)
+print("cpu_count:", os.cpu_count())
+print("=" * 62, flush=True)
+
+# ---- 2. Dependencies -----------------------------------------------------
+# Most are preinstalled on Kaggle; these two usually are not.
+sh("pip install -q sparse_dot_topn rapidfuzz polars 2>&1 | tail -2", check=False)
+
+# ---- 3. Code: cloned from the repo so the notebook stays a THIN RUNNER ---
+# Reproducibility is graded: all logic must live in src/, never in cells.
+SRC = Path("/kaggle/working/AmazonML/Lassi_submission/code/business_entity_resolution/src")
+if not SRC.exists():
+    sh(f"git clone --depth 1 {REPO} /kaggle/working/AmazonML")
+assert SRC.exists(), f"src not found at {SRC}"
+
+# ---- 4. Locate the attached dataset --------------------------------------
+def find_data_root() -> Path:
+    for candidate in sorted(glob.glob("/kaggle/input/*")):
+        p = Path(candidate)
+        for root in (p, p / "dataset"):
+            if (root / "train" / "train_source1.tsv").exists():
+                return root
+    raise SystemExit(
+        "Could not find the dataset. Expected <input>/train/train_source1.tsv\n"
+        "Found: " + str([str(x) for x in Path('/kaggle/input').glob('*')])
+    )
+
+DATA_ROOT = find_data_root()
+print("DATA_ROOT:", DATA_ROOT, flush=True)
+sh(f"ls -la {DATA_ROOT}/train {DATA_ROOT}/test", check=False)
+
+# ---- 5. Environment ------------------------------------------------------
+ARTIFACTS = Path("/kaggle/working/artifacts")
+OUTPUT    = Path("/kaggle/working/output")
+ARTIFACTS.mkdir(parents=True, exist_ok=True)
+OUTPUT.mkdir(parents=True, exist_ok=True)
+
+# A previous stage's artifacts arrive as another attached dataset -- copy them
+# in so this stage can read them.
+for prior in glob.glob("/kaggle/input/*/artifacts/model.txt"):
+    shutil.copytree(Path(prior).parent, ARTIFACTS, dirs_exist_ok=True)
+    print("reused artifacts from", prior, flush=True)
+for prior in glob.glob("/kaggle/input/*/output/*_*.tsv"):
+    shutil.copy(prior, OUTPUT / Path(prior).name)
+    print("reused partial output", Path(prior).name, flush=True)
+
+env = dict(os.environ)
+env["LASSI_DATA_ROOT"] = str(DATA_ROOT)
+env["LASSI_ARTIFACTS"] = str(ARTIFACTS)
+env["LASSI_OUTPUT"]    = str(OUTPUT)
+env["PYTHONUNBUFFERED"] = "1"
+
+# ---- 6. Run --------------------------------------------------------------
+if STAGE == "train":
+    cmd = [sys.executable, "train_model.py",
+           "--sample-entities", str(SAMPLE_ENTITIES),
+           "--artifacts", str(ARTIFACTS)]
+elif STAGE == "merge":
+    cmd = [sys.executable, "-m", "pipeline", "merge",
+           "--output-dir", str(OUTPUT)]
+else:
+    cmd = [sys.executable, "-m", "pipeline", "predict",
+           "--model", str(ARTIFACTS / "model.txt"),
+           "--country", STAGE,
+           "--output-dir", str(OUTPUT)]
+
+print("\n" + "=" * 62)
+print("STAGE:", STAGE)
+print("CMD  :", " ".join(cmd))
+print("=" * 62, flush=True)
+
+proc = subprocess.run(cmd, cwd=str(SRC), env=env)
+print(f"\nexit={proc.returncode}   elapsed={(time.time()-t_start)/60:.1f} min", flush=True)
+
+# ---- 7. Report what was produced ----------------------------------------
+sh(f"ls -lh {ARTIFACTS} {OUTPUT} 2>/dev/null", check=False)
+
+# Outputs are large (candidate_pairs.tsv is ~1.9 GB uncompressed); gzip so the
+# notebook output stays small enough to download comfortably.
+if STAGE == "merge":
+    for name in ("matching_results.tsv", "candidate_pairs.tsv"):
+        f = OUTPUT / name
+        if f.exists():
+            sh(f"gzip -kf {f}", check=False)
+    sh(f"ls -lh {OUTPUT}/*.gz", check=False)
+
+if proc.returncode != 0:
+    raise SystemExit(f"stage {STAGE} failed with exit code {proc.returncode}")

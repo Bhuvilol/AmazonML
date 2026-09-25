@@ -224,3 +224,31 @@ def test_breakdown_handles_no_singletons():
     out = score_breakdown({"S1-1": {"a"}}, truths)
     assert math.isnan(out["singleton_mean"])
     assert out["singleton_count"] == 0
+
+
+# --------------------------------------------------------------------------
+# Regression guard: predictions and truth must share one index space
+# --------------------------------------------------------------------------
+
+def test_offset_predictions_against_unoffset_truth_scores_zero():
+    """Pins the bug that made a multi-country run report 0.469 instead of 0.93.
+
+    Candidate columns were offset to make them globally unique across country
+    partitions, but the ground-truth sets were not offset to match. Every
+    intersection for the second partition was then empty, zeroing that whole
+    country. This asserts the failure mode so it cannot return silently.
+    """
+    truth = {10, 20}
+    offset = 1_000_000
+
+    aligned = entity_f_beta({10, 20}, truth)
+    misaligned = entity_f_beta({10 + offset, 20 + offset}, truth)
+
+    assert aligned == 1.0
+    assert misaligned == 0.0, "offset predictions must not accidentally match truth"
+
+    # And the fix: offsetting both sides equally is score-preserving.
+    both_offset = entity_f_beta(
+        {10 + offset, 20 + offset}, {t + offset for t in truth}
+    )
+    assert both_offset == 1.0
