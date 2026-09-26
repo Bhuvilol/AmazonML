@@ -10,17 +10,32 @@ cd "$(dirname "$0")"
 KG=.venv/bin/kaggle
 INTERVAL=300
 
+# Default to RETRYING, not to giving up.
+#
+# Three times now a transient condition has been treated as fatal and killed an
+# unattended run: unchecked shard pushes, then auth expiry, then a DNS blip
+# ("Failed to resolve api.kaggle.com") that ended a launcher which had already
+# waited 2h15m for a slot. Whitelisting each new transient error as it appears
+# is a losing game -- the correct default for a long-running launcher is to keep
+# trying and only give up after many CONSECUTIVE unknown failures.
+MAX_UNKNOWN=20        # ~100 min of consecutive unrecognised errors before quitting
+
 push_until_free() {   # $1 = kernel dir name
+  local unknown=0
   while :; do
     OUT=$($KG kernels push -p "kaggle/kernels_v3/$1" 2>&1)
     if grep -q "successfully pushed" <<<"$OUT"; then
       echo "$(date +%H:%M:%S)  LAUNCHED  lassi3-$1"; sleep 20; return 0
     elif grep -q "Maximum batch CPU session count" <<<"$OUT"; then
-      echo "$(date +%H:%M:%S)  waiting   lassi3-$1 (slots full)"
+      echo "$(date +%H:%M:%S)  waiting   lassi3-$1 (slots full)"; unknown=0
     elif grep -qi "Authentication required\|denied\|401\|403" <<<"$OUT"; then
-      echo "$(date +%H:%M:%S)  AUTH EXPIRED -- run: kaggle auth login --force"
+      echo "$(date +%H:%M:%S)  AUTH EXPIRED -- run: kaggle auth login --force"; unknown=0
+    elif grep -qiE "Max retries|NameResolution|Connection|timed out|TLS|SSL|50[0-9] " <<<"$OUT"; then
+      echo "$(date +%H:%M:%S)  network blip, retrying lassi3-$1"; unknown=0
     else
-      echo "$(date +%H:%M:%S)  ERROR lassi3-$1: $(head -1 <<<"$OUT")"; return 1
+      unknown=$((unknown+1))
+      echo "$(date +%H:%M:%S)  unknown error $unknown/$MAX_UNKNOWN lassi3-$1: $(head -1 <<<"$OUT")"
+      [ $unknown -ge $MAX_UNKNOWN ] && { echo "  giving up on $1"; return 1; }
     fi
     sleep $INTERVAL
   done
@@ -36,7 +51,8 @@ while :; do
   case "$S" in
     *COMPLETE*) echo "$(date +%H:%M:%S)  training COMPLETE"; break ;;
     *ERROR*|*CANCEL*) echo "$(date +%H:%M:%S)  TRAINING FAILED"; exit 1 ;;
-    *) echo "$(date +%H:%M:%S)  training running ..." ;;
+    # Anything else -- running, queued, auth gone, DNS gone -- means keep waiting.
+    *) echo "$(date +%H:%M:%S)  training not finished yet" ;;
   esac
   sleep $INTERVAL
 done
