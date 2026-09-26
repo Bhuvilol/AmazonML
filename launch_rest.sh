@@ -11,7 +11,7 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 KG=.venv/bin/kaggle
-PENDING=(us-s0of3 us-s1of3 us-s2of3 france)
+PENDING=(us-s1of3 us-s2of3)
 INTERVAL=300          # 5 min between retries; shards run for hours
 
 launched=()
@@ -19,7 +19,7 @@ failed=()
 
 for K in "${PENDING[@]}"; do
   while :; do
-    OUT=$($KG kernels push -p "kaggle/kernels_v2/$K" 2>&1)
+    OUT=$($KG kernels push -p "kaggle/kernels_v2pin/$K" 2>&1)
     if grep -q "successfully pushed" <<<"$OUT"; then
       echo "$(date +%H:%M:%S)  LAUNCHED  $K"
       launched+=("$K")

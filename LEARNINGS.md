@@ -205,6 +205,35 @@ Two points worth keeping:
 * **`cmd | grep -q` under `pipefail` is a latent trap anywhere in this repo.**
   Match against a captured string instead.
 
+**H20 — a model and the code that feeds it are one unit; deploy them pinned
+together.** The Kaggle runner did `git clone --depth 1`, so every kernel
+executed whatever was on `main` **when it started**, not when it was queued. I
+pushed competition features (20 -> 32 features) at ~01:00 while v2 shards were
+still waiting for slots. The India shards had launched at 21:44 and were fine.
+The France shard launched at 04:25, cloned the NEW code, spent **113 minutes**
+blocking, and died on its first predict call:
+
+```
+LightGBMError: The number of features in data (32) is not the same as
+it was in training data (20).
+```
+
+The three US shards were running the same doomed code and would have failed the
+same way hours later. Cost: roughly 5 kernel-hours and a delayed submission.
+
+What makes this worth remembering is that **every individual action was
+correct** — the features were measured, tested end-to-end in a clean venv, and
+committed with passing tests. The defect was entirely in *when* the push landed
+relative to jobs already in flight. Continuous deployment against long-running
+jobs that pull `HEAD` at start is a race with no error message until it is
+hours too late.
+
+Fixed by adding `COMMIT` to the runner (full clone + `git checkout` + a
+`rev-parse` assertion that the pin took, since a silently-failed checkout would
+reintroduce the identical bug). **Rule: if a job loads a trained artefact, pin
+the code to the commit that trained it. Treat `main` as unsafe to consume
+whenever anything is in flight.**
+
 ---
 
 ## 0. WHERE WE STAND

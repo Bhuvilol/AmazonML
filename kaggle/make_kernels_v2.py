@@ -27,10 +27,19 @@ def main() -> None:
     ap.add_argument("--sample-entities", type=int, default=30_000,
                     help="Training sample per country. Lower than before because "
                          "blocking is ~3x slower at max_df=0.5.")
+    ap.add_argument("--commit", default="",
+                    help="Pin kernels to this repo commit. Use whenever a run "
+                         "must match an already-trained model: kernels clone at "
+                         "runtime, so an unpinned kernel executes whatever is on "
+                         "main when it STARTS, not when it was queued.")
     ap.add_argument("--out", default="kernels_v2")
     args = ap.parse_args()
 
     runner = Path(__file__).with_name("kaggle_run.py").read_text()
+    if args.commit:
+        before = runner
+        runner = runner.replace('COMMIT = ""', f'COMMIT = "{args.commit}"', 1)
+        assert runner != before, "COMMIT anchor not found in kaggle_run.py"
     root = Path(__file__).parent / args.out
     made = []
 

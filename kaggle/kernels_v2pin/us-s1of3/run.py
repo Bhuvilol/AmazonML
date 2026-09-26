@@ -14,7 +14,7 @@
 # costs one partition instead of the whole job.
 # ==========================================================================
 
-STAGE = "train"          # "train" | "India" | "US" | "France" | "merge"
+STAGE = "US"          # "train" | "India" | "US" | "France" | "merge"
 SAMPLE_ENTITIES = 100_000
 REPO = "https://github.com/Bhuvilol/AmazonML.git"
 # Exact commit to run. NOT optional, and not a nicety.
@@ -26,7 +26,7 @@ REPO = "https://github.com/Bhuvilol/AmazonML.git"
 # before dying with "number of features in data (32) is not the same as it was
 # in training data (20)". A model and the code that feeds it are one unit; pin
 # them together.
-COMMIT = ""              # "" = latest main (only safe when nothing is in flight)
+COMMIT = "b0fb516"              # "" = latest main (only safe when nothing is in flight)
 
 # --------------------------------------------------------------------------
 import os, subprocess, sys, time, glob, shutil, textwrap
@@ -176,7 +176,7 @@ elif STAGE == "merge":
 else:
     cmd = [sys.executable, "-m", "pipeline", "predict",
            "--model", str(ARTIFACTS / "model.txt"),
-           "--country", STAGE,
+           "--country", STAGE, "--shard", "1", "--shards", "3",
            "--output-dir", str(OUTPUT)]
 
 print("\n" + "=" * 62)
