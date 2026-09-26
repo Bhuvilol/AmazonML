@@ -46,14 +46,41 @@ student_resource/
 cd src
 
 # 1. Train the pairwise matcher and select the decision threshold.
+#    30,000 entities PER COUNTRY is the figure that produced the submitted
+#    model -- not a placeholder. Blocking each sampled entity against the full
+#    6.19M-record target pool is the expensive part, so this is where the
+#    runtime goes (~2.5 h on 4 vCPU), not in fitting the trees.
 #    Writes artifacts/model.txt and artifacts/threshold.json
-python train_model.py --sample-entities 150000
+python train_model.py --sample-entities 30000
 
 # 2. Generate both submission files for the test set.
 #    The threshold is read from artifacts/threshold.json automatically,
 #    so the two stages cannot drift apart.
-python -m pipeline predict --model ../artifacts/model.txt --output-dir ../../output
+python pipeline.py predict --model ../artifacts/model.txt --output-dir ../../output
 ```
+
+### Running it in pieces
+
+The single command above needs one machine to hold the whole run. Test
+prediction is ~4.5 h of CPU, so we ran it split by country and shard and merged
+the parts. Any subset works; `merge` reassembles whatever partials it finds:
+
+```bash
+# One country at a time.
+python pipeline.py predict --country France --output-dir ../../output
+
+# Or shard a large country across machines (5 ways here).
+python pipeline.py predict --country India --shard 0 --shards 5 --output-dir ../../output
+
+# Reassemble. Writes matching_results.tsv and candidate_pairs.tsv, one row per
+# test Source-1 entity, and fails loudly if any entity is missing.
+python pipeline.py merge --output-dir ../../output
+```
+
+**Merge collects by pattern** (`matching_results_*.tsv`), so run it against a
+directory holding one run's partials only. Pointing it at a directory that also
+contains an earlier run's files silently mixes both generations into an output
+that still has the right row count and still passes the official validator.
 
 Then validate with the organisers' script, from `student_resource/`:
 

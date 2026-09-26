@@ -227,6 +227,7 @@ def run_predict(
     countries: list[str] | None = None,
     suffix: str = "",
     threshold_report: bool = False,
+    save_scores: bool = False,
     shard: int = 0,
     shards: int = 1,
 ) -> None:
@@ -310,6 +311,24 @@ def run_predict(
                         float(nonzero.mean()) if len(nonzero) else 0.0,
                         int(sizes.sum()),
                     )
+
+            if save_scores:
+                # Persist the raw pair scores alongside the partition's index
+                # arrays. Without this, ANY change to the decision rule or the
+                # threshold costs a full re-predict -- 4.5 h -- because the
+                # probabilities are computed and then thrown away. With it,
+                # re-deciding is seconds. Roughly 12 bytes per candidate pair.
+                score_path = output_dir / f"scores{suffix}.npz"
+                np.savez_compressed(
+                    score_path,
+                    row=candidates.row.astype(np.int32),
+                    col=candidates.col.astype(np.int32),
+                    p=probabilities.astype(np.float32),
+                    indptr=candidates.indptr.astype(np.int64),
+                    n_entities=np.int64(source1.height),
+                )
+                logger.info("  wrote %s (%.0f MB)", score_path.name,
+                            score_path.stat().st_size / 1e6)
 
             selected = DEC.select(
                 candidates.row, candidates.col, probabilities, source1.height,
@@ -405,6 +424,10 @@ def main() -> int:
              "sensible behaviour here', instead of one run per candidate value.",
     )
     parser.add_argument(
+        "--save-scores", action="store_true",
+        help="Persist raw pair scores (scores<suffix>.npz) so the decision rule "
+             "or threshold can be changed without a 4.5 h re-predict.")
+    parser.add_argument(
         "--shard", type=int, default=0,
         help="Which shard of the source entities to process (0-based).")
     parser.add_argument(
@@ -453,6 +476,7 @@ def main() -> int:
             Path(args.output_dir), args.singleton_gate, not args.no_exclusivity,
             countries=args.country, suffix=suffix,
             threshold_report=args.threshold_report,
+            save_scores=args.save_scores,
             shard=args.shard, shards=args.shards,
         )
         return 0
