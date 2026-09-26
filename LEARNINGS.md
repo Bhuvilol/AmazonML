@@ -172,6 +172,20 @@ Fixed by writing v2 to a clean `output_v2/`. **When a merge step discovers its
 inputs by pattern, give each run its own directory; do not rely on remembering
 to clean the last one.**
 
+**H18 — verify an artefact by opening it, not by seeing that it exists.**
+`zip -qr - Lassi_submission > Lassi_submission.zip` produced a 187 MB file with
+a sensible name, a sensible size and a sensible timestamp. It was unreadable:
+piping `zip -r -` to stdout writes a stream-format archive with no usable
+central directory, so `unzip` reports "End-of-central-directory signature not
+found". Every check short of opening it passed. This was the **required
+submission package** — the artefact the organisers use to reproduce results and
+verify licence compliance — so shipping it would have cost the entire
+submission, not a fraction of a point. Fixed by zipping to a real path and then
+running `unzip -t` plus an explicit per-file presence check inside the archive.
+**A build step's success is the artefact being usable, never the artefact being
+present.** Third instance of H6 in this project: unchecked shard pushes, auth
+expiry treated as fatal, and now this.
+
 ---
 
 ## 0. WHERE WE STAND

@@ -49,11 +49,32 @@ for required in \
   [ -e "$required" ] || { echo "MISSING from package: $required"; exit 1; }
 done
 
+# Write to a real path inside the staging dir, then move it into place. Piping
+# `zip -r -` to stdout produces a stream-format archive with no usable central
+# directory: the file looks right and has a plausible size, but unzip reports
+# "End-of-central-directory signature not found". That produced a 187 MB
+# unreadable submission package that passed every check except opening it.
 rm -f Lassi_submission.zip
-( cd "$STAGE" && zip -qr - Lassi_submission ) > Lassi_submission.zip
+( cd "$STAGE" && zip -qr Lassi_submission.zip Lassi_submission )
+mv "$STAGE/Lassi_submission.zip" Lassi_submission.zip
+
+# Never hand over an archive without opening it.
+echo
+echo "=== verifying archive ==="
+unzip -t Lassi_submission.zip > /dev/null || { echo "ARCHIVE IS CORRUPT"; exit 1; }
+N=$(unzip -l Lassi_submission.zip | tail -1 | awk '{print $2}')
+echo "  integrity OK, $N files"
+for required in Lassi_submission/output/matching_results.tsv \
+                Lassi_submission/output/candidate_pairs.tsv \
+                Lassi_submission/Documentation_template.md \
+                Lassi_submission/code/business_entity_resolution/requirements.txt; do
+  unzip -l Lassi_submission.zip | grep -q "$required" \
+    || { echo "  MISSING IN ARCHIVE: $required"; exit 1; }
+  echo "  present: $required"
+done
 
 echo
 echo "=== package contents ==="
-unzip -l Lassi_submission.zip | tail -n +4 | head -30
+unzip -l Lassi_submission.zip | tail -n +4 | head -26
 echo
 echo "built: $PWD/Lassi_submission.zip  ($(du -h Lassi_submission.zip | cut -f1))"
