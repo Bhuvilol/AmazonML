@@ -186,6 +186,25 @@ running `unzip -t` plus an explicit per-file presence check inside the archive.
 present.** Third instance of H6 in this project: unchecked shard pushes, auth
 expiry treated as fatal, and now this.
 
+**H19 — verification code needs verifying; a false negative is its own bug.**
+The archive check added under H18 reported
+`MISSING IN ARCHIVE: Lassi_submission/output/candidate_pairs.tsv` for an archive
+that contained it at 1,737,698,508 bytes. Cause: `unzip -l … | grep -q "$name"`
+— `grep -q` exits on its first match, SIGPIPEs `unzip`, and under
+`set -o pipefail` the pipeline reports failure. It only fired for names sorting
+EARLY in the listing, so `matching_results.tsv` (later) passed and
+`candidate_pairs.tsv` (earlier) failed: a bug that presents as
+file-specific and looks exactly like a real packaging fault. Fixed by capturing
+the listing once into a variable and matching against that.
+
+Two points worth keeping:
+* **A check that fails open is dangerous; a check that fails closed is merely
+  expensive — but both are wrong, and a false negative burns the trust that
+  makes the check useful.** I nearly rebuilt a 757 MB archive chasing a
+  phantom.
+* **`cmd | grep -q` under `pipefail` is a latent trap anywhere in this repo.**
+  Match against a captured string instead.
+
 ---
 
 ## 0. WHERE WE STAND

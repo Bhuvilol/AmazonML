@@ -62,13 +62,20 @@ mv "$STAGE/Lassi_submission.zip" Lassi_submission.zip
 echo
 echo "=== verifying archive ==="
 unzip -t Lassi_submission.zip > /dev/null || { echo "ARCHIVE IS CORRUPT"; exit 1; }
-N=$(unzip -l Lassi_submission.zip | tail -1 | awk '{print $2}')
+# List ONCE into a variable. Piping `unzip -l` into `grep -q` per file looks
+# fine and is wrong twice over: grep -q exits on its first match, which SIGPIPEs
+# unzip, and under `set -o pipefail` that makes the pipeline report failure for
+# a file that IS present. It reported candidate_pairs.tsv missing from an
+# archive containing it, purely because that name sorts early in the listing.
+# (It also re-read a 757 MB archive once per file.)
+LISTING=$(unzip -l Lassi_submission.zip)
+N=$(tail -1 <<<"$LISTING" | awk '{print $2}')
 echo "  integrity OK, $N files"
 for required in Lassi_submission/output/matching_results.tsv \
                 Lassi_submission/output/candidate_pairs.tsv \
                 Lassi_submission/Documentation_template.md \
                 Lassi_submission/code/business_entity_resolution/requirements.txt; do
-  unzip -l Lassi_submission.zip | grep -q "$required" \
+  grep -qF "$required" <<<"$LISTING" \
     || { echo "  MISSING IN ARCHIVE: $required"; exit 1; }
   echo "  present: $required"
 done
