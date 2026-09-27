@@ -49,13 +49,36 @@ for path,label in ((f"{OUT}/matching_results.tsv","MATCHING RESULTS"),
     print("="*104); print(label); print("="*104)
     print(f"  {'country':<9}{'rows':>10}{'empty%':>9}{'mean/S1':>9}{'p50':>6}{'p95':>7}{'p99':>7}"
           f"{'max':>7}{'S2':>11}{'S3':>11}{'invalid':>9}{'dupIDs':>8}")
-    for c in ("US","India","France","?"):
-        if c not in st: continue
+    # Iterate whatever countries are actually present. Hard-coding
+    # {US, India, France} would silently drop an unexpected label -- the exact
+    # open-set failure the problem statement warns about, and it hid 200
+    # synthetic "Zephyria" rows when this script was dry-run.
+    for c in sorted(st):
         e=st[c]; z=sorted(e["sizes"]); n=len(z)
         q=lambda p: z[min(int(p*n),n-1)]
         print(f"  {c:<9}{e['rows']:>10,}{100*e['empty']/e['rows']:>8.2f}%{e['ids']/e['rows']:>9.2f}"
               f"{q(.5):>6}{q(.95):>7}{q(.99):>7}{max(z):>7}{e['s2']:>11,}{e['s3']:>11,}"
               f"{e['inv']:>9,}{e['dupin']:>8,}")
     tot=sum(e["rows"] for e in st.values())
+    zero=sum(1 for c in st for _ in ())  # placeholder, real count below
     print(f"  TOTAL rows {tot:,} (need 1,732,544) | duplicate rows {duprow}")
+    z = sum(e["empty"] for e in st.values())
+    if label.startswith("CANDIDATE"):
+        print(f"  zero-candidate S1 entities: {z:,}  (any non-zero is a RED stop)")
+    print()
+
+    # Exclusivity: ground truth assigns each S2/S3 id to at most one S1, and
+    # resolve_exclusivity enforces it. After merge this MUST be zero.
+    claims = collections.Counter()
+    with open(path, encoding="utf-8") as fh:
+        fh.readline()
+        for line in fh:
+            _, _, b = line.partition("\t"); b = b.rstrip("\n")
+            if b.strip():
+                claims.update(x for x in b.split(",") if x)
+    multi = sum(1 for v in claims.values() if v > 1)
+    excess = sum(v - 1 for v in claims.values() if v > 1)
+    print(f"  EXCLUSIVITY: {len(claims):,} distinct ids used | "
+          f"claimed by >1 S1: {multi:,} | excess claims: {excess:,}"
+          f"{'  <-- VIOLATION' if (multi and label.startswith('MATCHING')) else ''}")
     print()
