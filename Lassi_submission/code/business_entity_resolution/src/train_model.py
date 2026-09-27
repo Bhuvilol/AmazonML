@@ -38,7 +38,8 @@ import blocking as B
 import decide as DEC
 import model as M
 from features import (RecordArrays, compute_pair_features,
-                      compute_competition_features)
+                      compute_competition_features, compute_idf_features,
+                      build_idf)
 from io_tsv import _READ_OPTS
 from pipeline import ARTIFACTS, DATA_ROOT, BlockingConfig, load_partition, discover_countries
 
@@ -104,8 +105,13 @@ def build_training_partition(country: str, n_entities: int, seed: int, config: B
     )
     # Must match pipeline.score_candidates exactly, or the model is trained on
     # one feature space and applied to another.
+    # Column order MUST match pipeline.score_candidates exactly:
+    # 20 base | 13 idf/exact | 10 competition-local.
     features = np.hstack([
         features,
+        compute_idf_features(left, right, candidates.row, candidates.col,
+                             build_idf(targets["name_norm"].to_list()),
+                             build_idf(targets["addr_norm"].to_list())),
         compute_competition_features(
             candidates.row, candidates.col,
             candidates.name_cos, candidates.addr_cos,

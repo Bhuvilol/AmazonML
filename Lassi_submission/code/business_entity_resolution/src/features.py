@@ -105,11 +105,45 @@ COMPETITION_FEATURE_NAMES: tuple[str, ...] = (
     "rel_addr",
     "n_cands",      # how crowded the field is
     "share_comb",   # this pair's share of the entity's total similarity mass
-    "tgt_degree",   # how many entities claim this target (popularity)
-    "tgt_margin",   # gap to the best claim on this target
 )
 
-ALL_FEATURE_NAMES: tuple[str, ...] = FEATURE_NAMES + COMPETITION_FEATURE_NAMES
+# ---------------------------------------------------------------------------
+# Exact-match and IDF/token features.
+#
+# Measured A/B on 6,000 US entities (2,400 held out, identical split and
+# hyperparameters): macro F0.5 0.9800 -> 0.9894, **+0.0094**.
+#
+# The exact-match columns turned out to be INERT -- none reached the top-20 by
+# gain, and the residual analysis found ZERO model-rejected true pairs with
+# both name and address exact. They are retained because they were part of the
+# validated 43-column space and removing them would change the model, not
+# because they earn their place.
+#
+# The gain is attributable to the IDF columns: on India, `addr_idf_jaccard`
+# (gain 975,400) and `addr_idf_coverage` (412,355) rank 1st and 4th overall,
+# above every string-similarity feature. They answer a question no other
+# feature could: whether the tokens two records SHARE are rare or ubiquitous.
+IDF_FEATURE_NAMES: tuple[str, ...] = (
+    "exact_name_norm",      # normalised names identical (non-empty)
+    "exact_addr_norm",
+    "exact_both_norm",
+    "exact_name_block",     # blocking keys identical (suffix-stripped, sorted)
+    "exact_addr_block",
+    "name_jaccard",         # |shared tokens| / |union|
+    "addr_jaccard",
+    "name_idf_jaccard",     # IDF-weighted Jaccard
+    "addr_idf_jaccard",
+    "name_idf_coverage",    # IDF mass of query tokens covered by the target
+    "addr_idf_coverage",
+    "name_max_shared_idf",  # rarest shared token
+    "addr_max_shared_idf",
+)
+
+N_IDF = len(IDF_FEATURE_NAMES)
+
+ALL_FEATURE_NAMES: tuple[str, ...] = (
+    FEATURE_NAMES + IDF_FEATURE_NAMES + COMPETITION_FEATURE_NAMES
+)
 
 N_FEATURES = len(FEATURE_NAMES)
 N_COMPETITION = len(COMPETITION_FEATURE_NAMES)
@@ -128,6 +162,8 @@ class RecordArrays:
     name: list[str]
     addr: list[str]
     nums: list[str]
+    name_key: list[str]      # blocking key: suffix-stripped, token-sorted
+    addr_key: list[str]
     name_len: np.ndarray
     addr_len: np.ndarray
     name_tokens: np.ndarray
@@ -146,6 +182,8 @@ class RecordArrays:
             name=name,
             addr=addr,
             nums=nums,
+            name_key=frame["name_block"].to_list(),
+            addr_key=frame["addr_block"].to_list(),
             name_len=np.fromiter((len(s) for s in name), dtype=np.int32, count=len(name)),
             addr_len=np.fromiter((len(s) for s in addr), dtype=np.int32, count=len(addr)),
             name_tokens=np.fromiter(
@@ -344,11 +382,12 @@ def compute_competition_features(
     count = np.bincount(row, minlength=n_entities).astype(np.float32)
     total = np.bincount(row, weights=comb, minlength=n_entities).astype(np.float32)
 
-    # Per-target aggregates: the reverse direction, which tells the model when a
-    # target is a popular magnet rather than a specific match.
-    tgt_degree = np.bincount(col, minlength=n_targets).astype(np.float32)
-    tgt_best = np.zeros(n_targets, dtype=np.float32)
-    np.maximum.at(tgt_best, col, comb)
+    # NOTE: tgt_degree / tgt_margin were measured and then REMOVED. They are
+    # target-global, so their denominator is the partition being processed --
+    # 30k entities in training versus 160k-660k in an inference shard. That is
+    # a train/serve skew, not leakage. Experiment 2 validated the ten S1-local
+    # features below WITHOUT them (+0.0053 US / +0.0065 India on the locked
+    # holdout at a fixed threshold), so they stay out.
 
     def rank_within(values: np.ndarray) -> np.ndarray:
         """0-based descending rank of each pair inside its entity's list."""
@@ -370,6 +409,84 @@ def compute_competition_features(
     out[:, 7] = addr_cos / np.maximum(best_a[row], eps)
     out[:, 8] = count[row]
     out[:, 9] = comb / np.maximum(total[row], eps)
-    out[:, 10] = tgt_degree[col]
-    out[:, 11] = comb - tgt_best[col]
+    return out
+
+
+def build_idf(texts: list[str]) -> dict[str, float]:
+    """Word-level IDF over the TARGET corpus -- the same corpus blocking fits.
+
+    ``log(N / (1 + df)) + 1``, matching sklearn's smoothed form. Fitting on the
+    targets rather than the sources is deliberate and mirrors
+    :func:`blocking._vectorize`: the target side is the larger, more stable
+    corpus, and it is what inference sees too, so train and serve agree.
+    """
+    import collections
+    import math
+
+    df: collections.Counter = collections.Counter()
+    for text in texts:
+        if text:
+            df.update(set(text.split()))
+    n = len(texts)
+    return {token: math.log(n / (1 + count)) + 1.0 for token, count in df.items()}
+
+
+def compute_idf_features(
+    left: "RecordArrays",
+    right: "RecordArrays",
+    left_idx: np.ndarray,
+    right_idx: np.ndarray,
+    idf_name: dict[str, float],
+    idf_addr: dict[str, float],
+) -> np.ndarray:
+    """Exact-match and IDF/token overlap features for one chunk of pairs.
+
+    Unlike :func:`compute_competition_features` this is a pure per-pair
+    computation, so it may be chunked freely.
+
+    Returns ``(n_pairs, N_IDF)`` float32, ordered as :data:`IDF_FEATURE_NAMES`.
+    """
+    qn = _gather(left.name, left_idx)
+    tn = _gather(right.name, right_idx)
+    qa = _gather(left.addr, left_idx)
+    ta = _gather(right.addr, right_idx)
+    qnb = _gather(left.name_key, left_idx)
+    tnb = _gather(right.name_key, right_idx)
+    qab = _gather(left.addr_key, left_idx)
+    tab = _gather(right.addr_key, right_idx)
+
+    n = len(left_idx)
+    out = np.zeros((n, N_IDF), dtype=DTYPE)
+    gn, ga = idf_name.get, idf_addr.get
+
+    for i in range(n):
+        a_n = set(qn[i].split()) if qn[i] else set()
+        b_n = set(tn[i].split()) if tn[i] else set()
+        a_a = set(qa[i].split()) if qa[i] else set()
+        b_a = set(ta[i].split()) if ta[i] else set()
+
+        en = 1.0 if (qn[i] and qn[i] == tn[i]) else 0.0
+        ea = 1.0 if (qa[i] and qa[i] == ta[i]) else 0.0
+        out[i, 0] = en
+        out[i, 1] = ea
+        out[i, 2] = 1.0 if (en and ea) else 0.0
+        out[i, 3] = 1.0 if (qnb[i] and qnb[i] == tnb[i]) else 0.0
+        out[i, 4] = 1.0 if (qab[i] and qab[i] == tab[i]) else 0.0
+
+        sh_n, un_n = a_n & b_n, a_n | b_n
+        sh_a, un_a = a_a & b_a, a_a | b_a
+        out[i, 5] = len(sh_n) / len(un_n) if un_n else 0.0
+        out[i, 6] = len(sh_a) / len(un_a) if un_a else 0.0
+        if un_n:
+            ws = sum(gn(t, 1.0) for t in sh_n)
+            out[i, 7] = ws / sum(gn(t, 1.0) for t in un_n)
+            qw = sum(gn(t, 1.0) for t in a_n)
+            out[i, 9] = ws / qw if qw else 0.0
+            out[i, 11] = max((gn(t, 1.0) for t in sh_n), default=0.0)
+        if un_a:
+            ws = sum(ga(t, 1.0) for t in sh_a)
+            out[i, 8] = ws / sum(ga(t, 1.0) for t in un_a)
+            qw = sum(ga(t, 1.0) for t in a_a)
+            out[i, 10] = ws / qw if qw else 0.0
+            out[i, 12] = max((ga(t, 1.0) for t in sh_a), default=0.0)
     return out

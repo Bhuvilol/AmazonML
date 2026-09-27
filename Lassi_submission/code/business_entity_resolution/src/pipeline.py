@@ -32,7 +32,8 @@ import blocking as B
 import decide as DEC
 import model as M
 from features import (RecordArrays, compute_pair_features,
-                      compute_competition_features)
+                      compute_competition_features, compute_idf_features,
+                      build_idf)
 from io_tsv import _READ_OPTS, read_entity_ids
 from submit import SEP as SEP_TAB
 from submit import CANDIDATE_HEADER, MATCHING_HEADER, StreamingIdListWriter
@@ -164,6 +165,10 @@ def score_candidates(
         candidates.name_cos, candidates.addr_cos,
         source1.height, targets.height,
     )
+    # Word-level IDF over the TARGET corpus, fitted once per partition -- the
+    # same corpus and the same moment blocking fits its char-ngram vectoriser.
+    idf_name = build_idf(targets["name_norm"].to_list())
+    idf_addr = build_idf(targets["addr_norm"].to_list())
 
     for start in range(0, len(candidates), chunk_size):
         stop = min(start + chunk_size, len(candidates))
@@ -172,7 +177,13 @@ def score_candidates(
             candidates.row[start:stop], candidates.col[start:stop],
             candidates.name_cos[start:stop], candidates.addr_cos[start:stop],
         )
-        features = np.hstack([features, competition[start:stop]])
+        features = np.hstack([
+            features,
+            compute_idf_features(left, right,
+                                 candidates.row[start:stop], candidates.col[start:stop],
+                                 idf_name, idf_addr),
+            competition[start:stop],
+        ])
         out[start:stop] = trained.predict(features)
         logger.info("  scored %d/%d pairs", stop, len(candidates))
         del features

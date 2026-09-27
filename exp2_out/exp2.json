@@ -1,0 +1,942 @@
+{
+  "pinned": "b0fb516",
+  "n_eval": 15000,
+  "n_train": 15000,
+  "exp1_features": [
+    "name_token_set",
+    "name_token_sort",
+    "name_ratio",
+    "name_jaro",
+    "name_cos",
+    "addr_token_set",
+    "addr_token_sort",
+    "addr_ratio",
+    "addr_jaro",
+    "addr_cos",
+    "nums_token_set",
+    "nums_exact",
+    "nums_both_present",
+    "name_len_ratio",
+    "addr_len_ratio",
+    "name_tok_diff",
+    "addr_tok_diff",
+    "tgt_is_s3",
+    "tgt_name_non_ascii",
+    "tgt_addr_non_ascii",
+    "exact_name_norm",
+    "exact_addr_norm",
+    "exact_both_norm",
+    "exact_name_block",
+    "exact_addr_block",
+    "name_jaccard",
+    "addr_jaccard",
+    "name_idf_jaccard",
+    "addr_idf_jaccard",
+    "name_idf_coverage",
+    "addr_idf_coverage",
+    "name_max_shared_idf",
+    "addr_max_shared_idf"
+  ],
+  "competition_local": [
+    "rank_name",
+    "rank_addr",
+    "rank_comb",
+    "marg_name",
+    "marg_addr",
+    "marg_comb",
+    "rel_name",
+    "rel_addr",
+    "n_cands",
+    "share_comb"
+  ],
+  "India": {
+    "exp1_33": {
+      "best_threshold_on_A": 0.6,
+      "F05_A": 0.912864816381169,
+      "F05_B": 0.9198285199833858,
+      "FP": 1774,
+      "TP": 44581,
+      "fn_model_rejected": 3543,
+      "fn_model_rejected_pct_of_all_true": 0.06809925615545774,
+      "true_pairs_eval": 52027,
+      "importance": [
+        [
+          "addr_idf_jaccard",
+          667189.1374040842
+        ],
+        [
+          "addr_idf_coverage",
+          412355.3924495578
+        ],
+        [
+          "nums_token_set",
+          164054.2734633088
+        ],
+        [
+          "name_idf_coverage",
+          125991.96215325594
+        ],
+        [
+          "name_token_set",
+          96256.8454734683
+        ],
+        [
+          "name_token_sort",
+          85414.93700182438
+        ],
+        [
+          "addr_token_set",
+          77942.76234918833
+        ],
+        [
+          "nums_exact",
+          61667.006280720234
+        ],
+        [
+          "name_jaro",
+          59626.88953483105
+        ],
+        [
+          "name_jaccard",
+          58752.312648415565
+        ],
+        [
+          "addr_max_shared_idf",
+          44011.80786168575
+        ],
+        [
+          "name_max_shared_idf",
+          41537.459154844284
+        ],
+        [
+          "name_tok_diff",
+          36112.816643476486
+        ],
+        [
+          "nums_both_present",
+          34239.59531760216
+        ],
+        [
+          "addr_len_ratio",
+          31683.156013548374
+        ],
+        [
+          "name_ratio",
+          28264.0309959054
+        ],
+        [
+          "name_len_ratio",
+          22211.998274564743
+        ],
+        [
+          "name_idf_jaccard",
+          20754.81860256195
+        ],
+        [
+          "addr_jaro",
+          13131.774032831192
+        ],
+        [
+          "name_cos",
+          12463.228344082832
+        ]
+      ],
+      "rejected_by_rank": {
+        "0": 120,
+        "1": 208,
+        "2": 245,
+        "3": 249,
+        "4": 192,
+        "5": 148,
+        "6": 96,
+        "7": 51
+      },
+      "rejected_rank_ge8": 2234,
+      "fn_by_exact": {
+        "exact_name_only": 228,
+        "exact_addr_only": 97,
+        "exact_both": 0,
+        "neither": 3218
+      },
+      "diagnostic": {
+        "model_rejected_positives": {
+          "n": 3543,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.7535,
+            0.9538
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.25,
+            0.8
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.0,
+            0.5333,
+            0.8571
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            6.0
+          ],
+          "n_cands_p10_50_90": [
+            76.0,
+            79.0,
+            112.0
+          ],
+          "exact_name_rate": 0.0644,
+          "exact_addr_rate": 0.0274
+        },
+        "accepted_true_positives": {
+          "n": 44581,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.9339,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.9089,
+            1.0
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.6,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.3636,
+            0.7857,
+            1.0
+          ],
+          "rank_p10_50_90": [
+            0.0,
+            1.0,
+            3.0
+          ],
+          "n_cands_p10_50_90": [
+            75.0,
+            78.0,
+            107.0
+          ],
+          "exact_name_rate": 0.2143,
+          "exact_addr_rate": 0.0843
+        },
+        "false_positives": {
+          "n": 1774,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.8639,
+            0.9918
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.1429,
+            0.8
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.0,
+            0.6875,
+            1.0
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            5.0
+          ],
+          "n_cands_p10_50_90": [
+            76.0,
+            78.0,
+            109.0
+          ],
+          "exact_name_rate": 0.0761,
+          "exact_addr_rate": 0.0637
+        }
+      }
+    },
+    "exp2_43": {
+      "best_threshold_on_A": 0.65,
+      "F05_A": 0.922485529188332,
+      "F05_B": 0.9266153238084528,
+      "FP": 1252,
+      "TP": 44729,
+      "fn_model_rejected": 3395,
+      "fn_model_rejected_pct_of_all_true": 0.06525457935302824,
+      "true_pairs_eval": 52027,
+      "importance": [
+        [
+          "addr_idf_jaccard",
+          975399.6925262809
+        ],
+        [
+          "nums_token_set",
+          185630.0370438099
+        ],
+        [
+          "share_comb",
+          159612.37178349495
+        ],
+        [
+          "addr_idf_coverage",
+          102231.66147327423
+        ],
+        [
+          "name_token_set",
+          78737.08623534441
+        ],
+        [
+          "name_jaccard",
+          60244.16443884373
+        ],
+        [
+          "name_token_sort",
+          56690.3764128685
+        ],
+        [
+          "rank_addr",
+          55280.64671373367
+        ],
+        [
+          "name_jaro",
+          49147.990844488144
+        ],
+        [
+          "name_idf_coverage",
+          45475.21328353882
+        ],
+        [
+          "addr_token_set",
+          44347.52061897516
+        ],
+        [
+          "nums_exact",
+          32808.99788939953
+        ],
+        [
+          "addr_len_ratio",
+          31489.758120894432
+        ],
+        [
+          "name_tok_diff",
+          28407.036199569702
+        ],
+        [
+          "nums_both_present",
+          27675.027556061745
+        ],
+        [
+          "name_ratio",
+          27541.32624924183
+        ],
+        [
+          "rank_comb",
+          23606.341420650482
+        ],
+        [
+          "addr_max_shared_idf",
+          22602.299896895885
+        ],
+        [
+          "name_len_ratio",
+          20130.62364178896
+        ],
+        [
+          "name_max_shared_idf",
+          18968.533475279808
+        ]
+      ]
+    },
+    "recovery_by_rank_ship": {
+      "0": {
+        "baseline_rejected": 120,
+        "recovered": 43,
+        "recovery_rate": 0.35833333333333334,
+        "newly_lost": 28,
+        "net": 15
+      },
+      "1": {
+        "baseline_rejected": 208,
+        "recovered": 68,
+        "recovery_rate": 0.3269230769230769,
+        "newly_lost": 48,
+        "net": 20
+      },
+      "2": {
+        "baseline_rejected": 245,
+        "recovered": 89,
+        "recovery_rate": 0.363265306122449,
+        "newly_lost": 60,
+        "net": 29
+      },
+      "3": {
+        "baseline_rejected": 249,
+        "recovered": 108,
+        "recovery_rate": 0.43373493975903615,
+        "newly_lost": 45,
+        "net": 63
+      },
+      "4-5": {
+        "baseline_rejected": 340,
+        "recovered": 122,
+        "recovery_rate": 0.3588235294117647,
+        "newly_lost": 86,
+        "net": 36
+      },
+      "6-7": {
+        "baseline_rejected": 147,
+        "recovered": 28,
+        "recovery_rate": 0.19047619047619047,
+        "newly_lost": 65,
+        "net": -37
+      },
+      "8-15": {
+        "baseline_rejected": 277,
+        "recovered": 31,
+        "recovery_rate": 0.11191335740072202,
+        "newly_lost": 93,
+        "net": -62
+      },
+      "16+": {
+        "baseline_rejected": 1957,
+        "recovered": 459,
+        "recovery_rate": 0.2345426673479816,
+        "newly_lost": 375,
+        "net": 84
+      },
+      "_TOTAL": {
+        "recovered": 948,
+        "newly_lost": 800,
+        "net": 148
+      }
+    },
+    "recovery_by_rank_fixed_thr": {
+      "0": {
+        "baseline_rejected": 120,
+        "recovered": 45,
+        "recovery_rate": 0.375,
+        "newly_lost": 22,
+        "net": 23
+      },
+      "1": {
+        "baseline_rejected": 208,
+        "recovered": 77,
+        "recovery_rate": 0.3701923076923077,
+        "newly_lost": 39,
+        "net": 38
+      },
+      "2": {
+        "baseline_rejected": 245,
+        "recovered": 99,
+        "recovery_rate": 0.40408163265306124,
+        "newly_lost": 42,
+        "net": 57
+      },
+      "3": {
+        "baseline_rejected": 249,
+        "recovered": 116,
+        "recovery_rate": 0.46586345381526106,
+        "newly_lost": 32,
+        "net": 84
+      },
+      "4-5": {
+        "baseline_rejected": 340,
+        "recovered": 136,
+        "recovery_rate": 0.4,
+        "newly_lost": 65,
+        "net": 71
+      },
+      "6-7": {
+        "baseline_rejected": 147,
+        "recovered": 35,
+        "recovery_rate": 0.23809523809523808,
+        "newly_lost": 52,
+        "net": -17
+      },
+      "8-15": {
+        "baseline_rejected": 277,
+        "recovered": 36,
+        "recovery_rate": 0.1299638989169675,
+        "newly_lost": 85,
+        "net": -49
+      },
+      "16+": {
+        "baseline_rejected": 1957,
+        "recovered": 517,
+        "recovery_rate": 0.2641798671435871,
+        "newly_lost": 306,
+        "net": 211
+      },
+      "_TOTAL": {
+        "recovered": 1061,
+        "newly_lost": 643,
+        "net": 418
+      }
+    },
+    "fixed_threshold_used": 0.6,
+    "exp2_F05_B_at_exp1_threshold": 0.926339962300577,
+    "exp2_FP_at_exp1_threshold": 1421,
+    "DELTA": {
+      "F05_A": 0.009620712807163034,
+      "F05_B": 0.006786803825067023,
+      "FP": -522,
+      "fn_model_pct": -0.002844676802429502
+    }
+  },
+  "US": {
+    "exp1_33": {
+      "best_threshold_on_A": 0.75,
+      "F05_A": 0.9595989252738554,
+      "F05_B": 0.9567494544801978,
+      "FP": 467,
+      "TP": 46503,
+      "fn_model_rejected": 3848,
+      "fn_model_rejected_pct_of_all_true": 0.07461268493203808,
+      "true_pairs_eval": 51573,
+      "importance": [
+        [
+          "nums_token_set",
+          1206498.5345765054
+        ],
+        [
+          "name_ratio",
+          460500.20875680447
+        ],
+        [
+          "name_jaro",
+          110979.9445360601
+        ],
+        [
+          "addr_cos",
+          64299.82714384794
+        ],
+        [
+          "addr_token_set",
+          60072.97986596823
+        ],
+        [
+          "name_token_sort",
+          51885.752440840006
+        ],
+        [
+          "name_token_set",
+          46897.30015575886
+        ],
+        [
+          "nums_both_present",
+          35947.746443361044
+        ],
+        [
+          "name_idf_jaccard",
+          26231.02820405364
+        ],
+        [
+          "addr_idf_coverage",
+          24642.282512247562
+        ],
+        [
+          "name_jaccard",
+          22456.07438570261
+        ],
+        [
+          "name_max_shared_idf",
+          21611.566349297762
+        ],
+        [
+          "name_cos",
+          21020.765079438686
+        ],
+        [
+          "name_idf_coverage",
+          19501.6235845387
+        ],
+        [
+          "addr_idf_jaccard",
+          18593.618990421295
+        ],
+        [
+          "addr_len_ratio",
+          17300.326559633017
+        ],
+        [
+          "addr_token_sort",
+          15395.97058853507
+        ],
+        [
+          "name_len_ratio",
+          14482.07895797491
+        ],
+        [
+          "addr_max_shared_idf",
+          12894.033004462719
+        ],
+        [
+          "addr_jaro",
+          5393.127445071936
+        ]
+      ],
+      "rejected_by_rank": {
+        "0": 166,
+        "1": 287,
+        "2": 451,
+        "3": 528,
+        "4": 381,
+        "5": 302,
+        "6": 180,
+        "7": 124
+      },
+      "rejected_rank_ge8": 1429,
+      "fn_by_exact": {
+        "exact_name_only": 767,
+        "exact_addr_only": 162,
+        "exact_both": 0,
+        "neither": 2919
+      },
+      "diagnostic": {
+        "model_rejected_positives": {
+          "n": 3848,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.8703,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.5666,
+            0.9185
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.6667,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.0,
+            0.2857,
+            0.7143
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            6.0
+          ],
+          "n_cands_p10_50_90": [
+            75.0,
+            77.0,
+            161.0
+          ],
+          "exact_name_rate": 0.1993,
+          "exact_addr_rate": 0.0421
+        },
+        "accepted_true_positives": {
+          "n": 46503,
+          "name_cos_p10_50_90": [
+            0.0,
+            1.0,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.6556,
+            0.8779,
+            1.0
+          ],
+          "name_jaccard_p10_50_90": [
+            0.3333,
+            0.75,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.3846,
+            0.6667,
+            1.0
+          ],
+          "rank_p10_50_90": [
+            0.0,
+            1.0,
+            3.0
+          ],
+          "n_cands_p10_50_90": [
+            74.0,
+            77.0,
+            176.0
+          ],
+          "exact_name_rate": 0.3172,
+          "exact_addr_rate": 0.1465
+        },
+        "false_positives": {
+          "n": 467,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.7405,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.7604,
+            0.9475
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.6,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.0,
+            0.4444,
+            0.75
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            5.0
+          ],
+          "n_cands_p10_50_90": [
+            75.0,
+            77.0,
+            128.8
+          ],
+          "exact_name_rate": 0.1756,
+          "exact_addr_rate": 0.0493
+        }
+      }
+    },
+    "exp2_43": {
+      "best_threshold_on_A": 0.75,
+      "F05_A": 0.9641485866464634,
+      "F05_B": 0.9620106320880668,
+      "FP": 547,
+      "TP": 47286,
+      "fn_model_rejected": 3065,
+      "fn_model_rejected_pct_of_all_true": 0.05943032206774863,
+      "true_pairs_eval": 51573,
+      "importance": [
+        [
+          "nums_token_set",
+          849585.5065488219
+        ],
+        [
+          "share_comb",
+          635435.4366752803
+        ],
+        [
+          "name_ratio",
+          163699.9063077867
+        ],
+        [
+          "name_jaro",
+          138976.37532180548
+        ],
+        [
+          "addr_idf_coverage",
+          116462.62919357419
+        ],
+        [
+          "addr_token_set",
+          47012.81606349349
+        ],
+        [
+          "nums_both_present",
+          40452.89411276579
+        ],
+        [
+          "name_idf_jaccard",
+          38253.67097583413
+        ],
+        [
+          "rank_addr",
+          33476.30764773488
+        ],
+        [
+          "name_token_set",
+          28127.439028590918
+        ],
+        [
+          "name_idf_coverage",
+          20460.15217870474
+        ],
+        [
+          "name_token_sort",
+          19364.367658495903
+        ],
+        [
+          "rank_comb",
+          17422.594772934914
+        ],
+        [
+          "rank_name",
+          17240.14193356037
+        ],
+        [
+          "name_jaccard",
+          13910.735122859478
+        ],
+        [
+          "name_len_ratio",
+          12475.347271353006
+        ],
+        [
+          "name_max_shared_idf",
+          10535.342489898205
+        ],
+        [
+          "addr_idf_jaccard",
+          9904.319559812546
+        ],
+        [
+          "addr_max_shared_idf",
+          9827.664365559816
+        ],
+        [
+          "addr_token_sort",
+          9268.720970094204
+        ]
+      ]
+    },
+    "recovery_by_rank_ship": {
+      "0": {
+        "baseline_rejected": 166,
+        "recovered": 33,
+        "recovery_rate": 0.19879518072289157,
+        "newly_lost": 27,
+        "net": 6
+      },
+      "1": {
+        "baseline_rejected": 287,
+        "recovered": 102,
+        "recovery_rate": 0.3554006968641115,
+        "newly_lost": 35,
+        "net": 67
+      },
+      "2": {
+        "baseline_rejected": 451,
+        "recovered": 186,
+        "recovery_rate": 0.4124168514412417,
+        "newly_lost": 25,
+        "net": 161
+      },
+      "3": {
+        "baseline_rejected": 528,
+        "recovered": 265,
+        "recovery_rate": 0.5018939393939394,
+        "newly_lost": 22,
+        "net": 243
+      },
+      "4-5": {
+        "baseline_rejected": 683,
+        "recovered": 303,
+        "recovery_rate": 0.44363103953147875,
+        "newly_lost": 41,
+        "net": 262
+      },
+      "6-7": {
+        "baseline_rejected": 304,
+        "recovered": 90,
+        "recovery_rate": 0.29605263157894735,
+        "newly_lost": 19,
+        "net": 71
+      },
+      "8-15": {
+        "baseline_rejected": 382,
+        "recovered": 52,
+        "recovery_rate": 0.13612565445026178,
+        "newly_lost": 48,
+        "net": 4
+      },
+      "16+": {
+        "baseline_rejected": 1047,
+        "recovered": 98,
+        "recovery_rate": 0.0936007640878701,
+        "newly_lost": 129,
+        "net": -31
+      },
+      "_TOTAL": {
+        "recovered": 1129,
+        "newly_lost": 346,
+        "net": 783
+      }
+    },
+    "recovery_by_rank_fixed_thr": {
+      "0": {
+        "baseline_rejected": 166,
+        "recovered": 33,
+        "recovery_rate": 0.19879518072289157,
+        "newly_lost": 27,
+        "net": 6
+      },
+      "1": {
+        "baseline_rejected": 287,
+        "recovered": 102,
+        "recovery_rate": 0.3554006968641115,
+        "newly_lost": 35,
+        "net": 67
+      },
+      "2": {
+        "baseline_rejected": 451,
+        "recovered": 186,
+        "recovery_rate": 0.4124168514412417,
+        "newly_lost": 25,
+        "net": 161
+      },
+      "3": {
+        "baseline_rejected": 528,
+        "recovered": 265,
+        "recovery_rate": 0.5018939393939394,
+        "newly_lost": 22,
+        "net": 243
+      },
+      "4-5": {
+        "baseline_rejected": 683,
+        "recovered": 303,
+        "recovery_rate": 0.44363103953147875,
+        "newly_lost": 41,
+        "net": 262
+      },
+      "6-7": {
+        "baseline_rejected": 304,
+        "recovered": 90,
+        "recovery_rate": 0.29605263157894735,
+        "newly_lost": 19,
+        "net": 71
+      },
+      "8-15": {
+        "baseline_rejected": 382,
+        "recovered": 52,
+        "recovery_rate": 0.13612565445026178,
+        "newly_lost": 48,
+        "net": 4
+      },
+      "16+": {
+        "baseline_rejected": 1047,
+        "recovered": 98,
+        "recovery_rate": 0.0936007640878701,
+        "newly_lost": 129,
+        "net": -31
+      },
+      "_TOTAL": {
+        "recovered": 1129,
+        "newly_lost": 346,
+        "net": 783
+      }
+    },
+    "fixed_threshold_used": 0.75,
+    "exp2_F05_B_at_exp1_threshold": 0.9620106320880668,
+    "exp2_FP_at_exp1_threshold": 547,
+    "DELTA": {
+      "F05_A": 0.004549661372608038,
+      "F05_B": 0.005261177607869039,
+      "FP": 80,
+      "fn_model_pct": -0.015182362864289457
+    }
+  }
+}

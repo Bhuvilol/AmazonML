@@ -1,0 +1,217 @@
+{
+  "pinned": "b0fb516",
+  "n_eval": 15000,
+  "n_cost_sample": 200000,
+  "ks": [
+    1,
+    3,
+    5,
+    10
+  ],
+  "India": {
+    "forward_recall": 0.9249812597305246,
+    "forward_cands": 1302772,
+    "forward_per_S1": 86.85146666666667,
+    "blocked_true_pairs": 3903,
+    "full_s1": 883188,
+    "targets": 4133346,
+    "partA_recovery": {
+      "name_k1": {
+        "recovered": 290,
+        "of_blocked": 3903,
+        "rate": 0.07430181911350243
+      },
+      "name_k3": {
+        "recovered": 457,
+        "of_blocked": 3903,
+        "rate": 0.11708941839610557
+      },
+      "name_k5": {
+        "recovered": 564,
+        "of_blocked": 3903,
+        "rate": 0.1445042275172944
+      },
+      "name_k10": {
+        "recovered": 727,
+        "of_blocked": 3903,
+        "rate": 0.1862669741224699
+      },
+      "addr_k1": {
+        "recovered": 664,
+        "of_blocked": 3903,
+        "rate": 0.1701255444529849
+      },
+      "addr_k3": {
+        "recovered": 923,
+        "of_blocked": 3903,
+        "rate": 0.23648475531642327
+      },
+      "addr_k5": {
+        "recovered": 1034,
+        "of_blocked": 3903,
+        "rate": 0.2649244171150397
+      },
+      "addr_k10": {
+        "recovered": 1197,
+        "of_blocked": 3903,
+        "rate": 0.3066871637202152
+      },
+      "blocked_card1": 73,
+      "blocked_s2": 1504,
+      "blocked_s3": 2399
+    },
+    "partB_cost": {
+      "name_k1": {
+        "pairs_in_sample": 2872,
+        "new_in_sample": 603,
+        "est_new_pairs_full": 12462.038190000001,
+        "est_new_per_S1": 0.830802546
+      },
+      "name_k3": {
+        "pairs_in_sample": 8250,
+        "new_in_sample": 3256,
+        "est_new_pairs_full": 67290.87288000001,
+        "est_new_per_S1": 4.486058192000001
+      },
+      "name_k5": {
+        "pairs_in_sample": 13892,
+        "new_in_sample": 6958,
+        "est_new_pairs_full": 143799.10734000002,
+        "est_new_per_S1": 9.586607156000001
+      },
+      "name_k10": {
+        "pairs_in_sample": 27782,
+        "new_in_sample": 17362,
+        "est_new_pairs_full": 358815.76626,
+        "est_new_per_S1": 23.921051084000002
+      },
+      "addr_k1": {
+        "pairs_in_sample": 3551,
+        "new_in_sample": 803,
+        "est_new_pairs_full": 16595.38419,
+        "est_new_per_S1": 1.106358946
+      },
+      "addr_k3": {
+        "pairs_in_sample": 10129,
+        "new_in_sample": 4569,
+        "est_new_pairs_full": 94426.28937,
+        "est_new_per_S1": 6.295085958
+      },
+      "addr_k5": {
+        "pairs_in_sample": 17239,
+        "new_in_sample": 9745,
+        "est_new_pairs_full": 201397.28385,
+        "est_new_per_S1": 13.42648559
+      },
+      "addr_k10": {
+        "pairs_in_sample": 34264,
+        "new_in_sample": 23968,
+        "est_new_pairs_full": 495340.18464000005,
+        "est_new_per_S1": 33.022678976
+      }
+    }
+  },
+  "US": {
+    "forward_recall": 0.9763054311364474,
+    "forward_cands": 1363769,
+    "forward_per_S1": 90.91793333333334,
+    "blocked_true_pairs": 1222,
+    "full_s1": 1323633,
+    "targets": 6186873,
+    "partA_recovery": {
+      "name_k1": {
+        "recovered": 177,
+        "of_blocked": 1222,
+        "rate": 0.1448445171849427
+      },
+      "name_k3": {
+        "recovered": 298,
+        "of_blocked": 1222,
+        "rate": 0.24386252045826515
+      },
+      "name_k5": {
+        "recovered": 352,
+        "of_blocked": 1222,
+        "rate": 0.28805237315875615
+      },
+      "name_k10": {
+        "recovered": 421,
+        "of_blocked": 1222,
+        "rate": 0.3445171849427169
+      },
+      "addr_k1": {
+        "recovered": 213,
+        "of_blocked": 1222,
+        "rate": 0.17430441898527005
+      },
+      "addr_k3": {
+        "recovered": 314,
+        "of_blocked": 1222,
+        "rate": 0.2569558101472995
+      },
+      "addr_k5": {
+        "recovered": 368,
+        "of_blocked": 1222,
+        "rate": 0.3011456628477905
+      },
+      "addr_k10": {
+        "recovered": 424,
+        "of_blocked": 1222,
+        "rate": 0.3469721767594108
+      },
+      "blocked_card1": 18,
+      "blocked_s2": 496,
+      "blocked_s3": 726
+    },
+    "partB_cost": {
+      "name_k1": {
+        "pairs_in_sample": 2369,
+        "new_in_sample": 600,
+        "est_new_pairs_full": 18560.619,
+        "est_new_per_S1": 1.2373745999999999
+      },
+      "name_k3": {
+        "pairs_in_sample": 7082,
+        "new_in_sample": 3149,
+        "est_new_pairs_full": 97412.315385,
+        "est_new_per_S1": 6.4941543589999995
+      },
+      "name_k5": {
+        "pairs_in_sample": 11746,
+        "new_in_sample": 6283,
+        "est_new_pairs_full": 194360.615295,
+        "est_new_per_S1": 12.957374353
+      },
+      "name_k10": {
+        "pairs_in_sample": 23021,
+        "new_in_sample": 15035,
+        "est_new_pairs_full": 465098.177775,
+        "est_new_per_S1": 31.006545185
+      },
+      "addr_k1": {
+        "pairs_in_sample": 2116,
+        "new_in_sample": 226,
+        "est_new_pairs_full": 6991.16649,
+        "est_new_per_S1": 0.46607776599999995
+      },
+      "addr_k3": {
+        "pairs_in_sample": 6535,
+        "new_in_sample": 2298,
+        "est_new_pairs_full": 71087.17077,
+        "est_new_per_S1": 4.7391447179999995
+      },
+      "addr_k5": {
+        "pairs_in_sample": 10938,
+        "new_in_sample": 5269,
+        "est_new_pairs_full": 162993.169185,
+        "est_new_per_S1": 10.866211279
+      },
+      "addr_k10": {
+        "pairs_in_sample": 21163,
+        "new_in_sample": 13299,
+        "est_new_pairs_full": 411396.120135,
+        "est_new_per_S1": 27.426408009
+      }
+    }
+  }
+}

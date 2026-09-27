@@ -1,0 +1,652 @@
+{
+  "pinned": "b0fb516",
+  "n_eval": 15000,
+  "n_train": 15000,
+  "baseline_features": [
+    "name_token_set",
+    "name_token_sort",
+    "name_ratio",
+    "name_jaro",
+    "name_cos",
+    "addr_token_set",
+    "addr_token_sort",
+    "addr_ratio",
+    "addr_jaro",
+    "addr_cos",
+    "nums_token_set",
+    "nums_exact",
+    "nums_both_present",
+    "name_len_ratio",
+    "addr_len_ratio",
+    "name_tok_diff",
+    "addr_tok_diff",
+    "tgt_is_s3",
+    "tgt_name_non_ascii",
+    "tgt_addr_non_ascii"
+  ],
+  "new_features": [
+    "exact_name_norm",
+    "exact_addr_norm",
+    "exact_both_norm",
+    "exact_name_block",
+    "exact_addr_block",
+    "name_jaccard",
+    "addr_jaccard",
+    "name_idf_jaccard",
+    "addr_idf_jaccard",
+    "name_idf_coverage",
+    "addr_idf_coverage",
+    "name_max_shared_idf",
+    "addr_max_shared_idf"
+  ],
+  "India": {
+    "baseline20": {
+      "best_threshold_on_A": 0.6,
+      "F05_A": 0.8953492649022518,
+      "F05_B": 0.8975234268619425,
+      "FP": 1970,
+      "TP": 42550,
+      "fn_model_rejected": 5574,
+      "fn_model_rejected_pct_of_all_true": 0.10713667903204105,
+      "true_pairs_eval": 52027,
+      "importance": [
+        [
+          "nums_token_set",
+          603363.7742002606
+        ],
+        [
+          "nums_exact",
+          387326.68625736237
+        ],
+        [
+          "name_token_set",
+          195136.070677042
+        ],
+        [
+          "addr_cos",
+          180677.30164265633
+        ],
+        [
+          "addr_token_set",
+          164174.11897438765
+        ],
+        [
+          "name_token_sort",
+          128130.60146832466
+        ],
+        [
+          "name_jaro",
+          91253.07904309034
+        ],
+        [
+          "nums_both_present",
+          57355.842587292194
+        ],
+        [
+          "addr_jaro",
+          40028.27669405937
+        ],
+        [
+          "name_len_ratio",
+          39962.57928925753
+        ],
+        [
+          "name_ratio",
+          39415.82915890217
+        ],
+        [
+          "name_tok_diff",
+          32737.550600230694
+        ],
+        [
+          "name_cos",
+          30743.495938956738
+        ],
+        [
+          "addr_len_ratio",
+          23429.363050341606
+        ],
+        [
+          "addr_token_sort",
+          19686.069745898247
+        ],
+        [
+          "tgt_name_non_ascii",
+          12599.426947891712
+        ],
+        [
+          "addr_ratio",
+          11555.279972732067
+        ],
+        [
+          "tgt_is_s3",
+          11085.488949894905
+        ],
+        [
+          "tgt_addr_non_ascii",
+          10927.37747490406
+        ],
+        [
+          "addr_tok_diff",
+          8963.141722261906
+        ]
+      ],
+      "fn_by_exact": {
+        "exact_name_only": 611,
+        "exact_addr_only": 114,
+        "exact_both": 0,
+        "neither": 4849
+      },
+      "diagnostic": {
+        "model_rejected_positives": {
+          "n": 5574,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.7155,
+            0.9437
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.4286,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.0,
+            0.5,
+            0.8333
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            6.0
+          ],
+          "n_cands_p10_50_90": [
+            76.0,
+            79.0,
+            111.0
+          ],
+          "exact_name_rate": 0.1096,
+          "exact_addr_rate": 0.0205
+        },
+        "accepted_true_positives": {
+          "n": 42550,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.9354,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.5222,
+            0.9133,
+            1.0
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.6,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.4167,
+            0.7895,
+            1.0
+          ],
+          "rank_p10_50_90": [
+            0.0,
+            1.0,
+            3.0
+          ],
+          "n_cands_p10_50_90": [
+            75.0,
+            78.0,
+            108.0
+          ],
+          "exact_name_rate": 0.2156,
+          "exact_addr_rate": 0.0879
+        },
+        "false_positives": {
+          "n": 1970,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.8852,
+            0.9923
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.25,
+            0.75
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.2727,
+            0.7222,
+            1.0
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            5.0
+          ],
+          "n_cands_p10_50_90": [
+            76.0,
+            79.0,
+            111.0
+          ],
+          "exact_name_rate": 0.0259,
+          "exact_addr_rate": 0.0635
+        }
+      }
+    },
+    "plus13": {
+      "best_threshold_on_A": 0.6,
+      "F05_A": 0.912864816381169,
+      "F05_B": 0.9198285199833858,
+      "FP": 1774,
+      "TP": 44581,
+      "fn_model_rejected": 3543,
+      "fn_model_rejected_pct_of_all_true": 0.06809925615545774,
+      "true_pairs_eval": 52027,
+      "importance": [
+        [
+          "addr_idf_jaccard",
+          667189.1374040842
+        ],
+        [
+          "addr_idf_coverage",
+          412355.3924495578
+        ],
+        [
+          "nums_token_set",
+          164054.2734633088
+        ],
+        [
+          "name_idf_coverage",
+          125991.96215325594
+        ],
+        [
+          "name_token_set",
+          96256.8454734683
+        ],
+        [
+          "name_token_sort",
+          85414.93700182438
+        ],
+        [
+          "addr_token_set",
+          77942.76234918833
+        ],
+        [
+          "nums_exact",
+          61667.006280720234
+        ],
+        [
+          "name_jaro",
+          59626.88953483105
+        ],
+        [
+          "name_jaccard",
+          58752.312648415565
+        ],
+        [
+          "addr_max_shared_idf",
+          44011.80786168575
+        ],
+        [
+          "name_max_shared_idf",
+          41537.459154844284
+        ],
+        [
+          "name_tok_diff",
+          36112.816643476486
+        ],
+        [
+          "nums_both_present",
+          34239.59531760216
+        ],
+        [
+          "addr_len_ratio",
+          31683.156013548374
+        ],
+        [
+          "name_ratio",
+          28264.0309959054
+        ],
+        [
+          "name_len_ratio",
+          22211.998274564743
+        ],
+        [
+          "name_idf_jaccard",
+          20754.81860256195
+        ],
+        [
+          "addr_jaro",
+          13131.774032831192
+        ],
+        [
+          "name_cos",
+          12463.228344082832
+        ]
+      ]
+    },
+    "DELTA": {
+      "F05_A": 0.017515551478917257,
+      "F05_B": 0.022305093121443242,
+      "FP": -196,
+      "fn_model_pct": -0.03903742287658331
+    }
+  },
+  "US": {
+    "baseline20": {
+      "best_threshold_on_A": 0.7,
+      "F05_A": 0.946923198353044,
+      "F05_B": 0.9470067962292162,
+      "FP": 646,
+      "TP": 45497,
+      "fn_model_rejected": 4854,
+      "fn_model_rejected_pct_of_all_true": 0.09411901576406259,
+      "true_pairs_eval": 51573,
+      "importance": [
+        [
+          "nums_token_set",
+          753583.9291604757
+        ],
+        [
+          "nums_exact",
+          429886.28499126434
+        ],
+        [
+          "name_ratio",
+          349413.1823294163
+        ],
+        [
+          "name_jaro",
+          214764.75298410654
+        ],
+        [
+          "addr_cos",
+          123168.2782382071
+        ],
+        [
+          "addr_token_set",
+          79329.2777273655
+        ],
+        [
+          "name_token_sort",
+          72236.12561005354
+        ],
+        [
+          "addr_token_sort",
+          37484.21023976803
+        ],
+        [
+          "name_token_set",
+          33985.45425668359
+        ],
+        [
+          "nums_both_present",
+          32557.247544050217
+        ],
+        [
+          "addr_len_ratio",
+          31267.12746360898
+        ],
+        [
+          "name_cos",
+          30681.227614164352
+        ],
+        [
+          "name_len_ratio",
+          20516.39677810669
+        ],
+        [
+          "addr_jaro",
+          10054.092961370945
+        ],
+        [
+          "addr_ratio",
+          7781.38525468111
+        ],
+        [
+          "name_tok_diff",
+          7023.483481138945
+        ],
+        [
+          "addr_tok_diff",
+          6891.289735168219
+        ],
+        [
+          "tgt_is_s3",
+          3868.9450570344925
+        ],
+        [
+          "tgt_name_non_ascii",
+          653.0626019239426
+        ],
+        [
+          "tgt_addr_non_ascii",
+          0.0
+        ]
+      ],
+      "fn_by_exact": {
+        "exact_name_only": 891,
+        "exact_addr_only": 174,
+        "exact_both": 0,
+        "neither": 3789
+      },
+      "diagnostic": {
+        "model_rejected_positives": {
+          "n": 4854,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.8727,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.6187,
+            0.9083
+          ],
+          "name_jaccard_p10_50_90": [
+            0.0,
+            0.6667,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.0,
+            0.3333,
+            0.7143
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            6.0
+          ],
+          "n_cands_p10_50_90": [
+            75.0,
+            77.0,
+            157.0
+          ],
+          "exact_name_rate": 0.1836,
+          "exact_addr_rate": 0.0358
+        },
+        "accepted_true_positives": {
+          "n": 45497,
+          "name_cos_p10_50_90": [
+            0.0,
+            1.0,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.6668,
+            0.8803,
+            1.0
+          ],
+          "name_jaccard_p10_50_90": [
+            0.3333,
+            0.75,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.4,
+            0.6667,
+            1.0
+          ],
+          "rank_p10_50_90": [
+            0.0,
+            1.0,
+            3.0
+          ],
+          "n_cands_p10_50_90": [
+            74.0,
+            77.0,
+            176.0
+          ],
+          "exact_name_rate": 0.3215,
+          "exact_addr_rate": 0.1495
+        },
+        "false_positives": {
+          "n": 646,
+          "name_cos_p10_50_90": [
+            0.0,
+            0.7083,
+            1.0
+          ],
+          "addr_cos_p10_50_90": [
+            0.0,
+            0.8147,
+            1.0
+          ],
+          "name_jaccard_p10_50_90": [
+            0.1667,
+            0.5,
+            1.0
+          ],
+          "addr_jaccard_p10_50_90": [
+            0.1818,
+            0.542,
+            1.0
+          ],
+          "rank_p10_50_90": [
+            1.0,
+            3.0,
+            5.0
+          ],
+          "n_cands_p10_50_90": [
+            75.0,
+            77.0,
+            174.5
+          ],
+          "exact_name_rate": 0.0789,
+          "exact_addr_rate": 0.0743
+        }
+      }
+    },
+    "plus13": {
+      "best_threshold_on_A": 0.75,
+      "F05_A": 0.9595989252738554,
+      "F05_B": 0.9567494544801978,
+      "FP": 467,
+      "TP": 46503,
+      "fn_model_rejected": 3848,
+      "fn_model_rejected_pct_of_all_true": 0.07461268493203808,
+      "true_pairs_eval": 51573,
+      "importance": [
+        [
+          "nums_token_set",
+          1206498.5345765054
+        ],
+        [
+          "name_ratio",
+          460500.20875680447
+        ],
+        [
+          "name_jaro",
+          110979.9445360601
+        ],
+        [
+          "addr_cos",
+          64299.82714384794
+        ],
+        [
+          "addr_token_set",
+          60072.97986596823
+        ],
+        [
+          "name_token_sort",
+          51885.752440840006
+        ],
+        [
+          "name_token_set",
+          46897.30015575886
+        ],
+        [
+          "nums_both_present",
+          35947.746443361044
+        ],
+        [
+          "name_idf_jaccard",
+          26231.02820405364
+        ],
+        [
+          "addr_idf_coverage",
+          24642.282512247562
+        ],
+        [
+          "name_jaccard",
+          22456.07438570261
+        ],
+        [
+          "name_max_shared_idf",
+          21611.566349297762
+        ],
+        [
+          "name_cos",
+          21020.765079438686
+        ],
+        [
+          "name_idf_coverage",
+          19501.6235845387
+        ],
+        [
+          "addr_idf_jaccard",
+          18593.618990421295
+        ],
+        [
+          "addr_len_ratio",
+          17300.326559633017
+        ],
+        [
+          "addr_token_sort",
+          15395.97058853507
+        ],
+        [
+          "name_len_ratio",
+          14482.07895797491
+        ],
+        [
+          "addr_max_shared_idf",
+          12894.033004462719
+        ],
+        [
+          "addr_jaro",
+          5393.127445071936
+        ]
+      ]
+    },
+    "DELTA": {
+      "F05_A": 0.012675726920811425,
+      "F05_B": 0.009742658250981528,
+      "FP": -179,
+      "fn_model_pct": -0.019506330832024507
+    }
+  }
+}
